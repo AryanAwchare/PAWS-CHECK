@@ -1,0 +1,10 @@
+{
+  "name": "Paws-Check – Digital Veterinary Assistant",
+  "description": "AI-powered pet health triage tool. Analyze pet symptoms via images/videos, find nearby vets, and track health trends.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
