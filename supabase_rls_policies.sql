@@ -3,7 +3,7 @@
 -- Run in Supabase SQL Editor (Dashboard → SQL Editor → New Query)
 -- 
 -- Fully self-contained & idempotent: Creates missing tables automatically
--- before applying the Row Level Security policies.
+-- before applying Row Level Security policies and multi-user trigger mapping.
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -693,3 +693,32 @@ CREATE POLICY "Vets can view pet documents for their patients" ON pet_documents
       WHERE a.pet_id = pet_documents.pet_id AND a.vet_id = auth.uid()
     )
   );
+
+-- ============================================================
+-- PART 3: AUTOMATIC USER PROFILE PROVISIONING TRIGGERS
+-- ============================================================
+-- Ensures user_profiles table is populated seamlessly upon registration
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, full_name, avatar_url, role)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'full_name', new.email),
+    COALESCE(new.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=1000'),
+    COALESCE(new.raw_user_meta_data->>'role', 'owner')
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    avatar_url = EXCLUDED.avatar_url,
+    updated_at = NOW();
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger execution automatically keeps profiles populated
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

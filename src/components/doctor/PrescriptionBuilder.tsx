@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Pill, Plus, Trash2, Save, Clock, Bell, Eye, ChevronDown,
   CheckCircle, AlertTriangle, User, Calendar
 } from 'lucide-react';
+import { useDoctor } from '../../context/DoctorContext';
 
 interface MedicationItem {
   id: string;
@@ -27,6 +28,14 @@ interface PrescriptionRecord {
   status: 'active' | 'completed' | 'cancelled';
   createdAt: string;
   notes: string;
+}
+
+interface PatientOption {
+  petId: string;
+  petName: string;
+  petBreed: string;
+  ownerName: string;
+  ownerEmail: string;
 }
 
 const EMPTY_MED: MedicationItem = {
@@ -63,14 +72,91 @@ const DEMO_PAST_PRESCRIPTIONS: PrescriptionRecord[] = [
 ];
 
 export default function PrescriptionBuilder() {
+  const { appointments } = useDoctor();
   const [viewMode, setViewMode] = useState<'builder' | 'history'>('builder');
   const [medications, setMedications] = useState<MedicationItem[]>([
     { ...EMPTY_MED, id: `med-${Date.now()}` },
   ]);
+  
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [selectedPet, setSelectedPet] = useState('Bruno');
+  const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>({
+    petId: 'demo-bruno', petName: 'Bruno', petBreed: 'Golden Retriever', ownerName: 'Priya Sharma', ownerEmail: 'priya@example.com'
+  });
+  
   const [notes, setNotes] = useState('');
   const [saved, setSaved] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  useEffect(() => {
+    const list: PatientOption[] = [
+      { petId: 'demo-bruno', petName: 'Bruno', petBreed: 'Golden Retriever', ownerName: 'Priya Sharma', ownerEmail: 'priya@example.com' },
+      { petId: 'demo-whiskers', petName: 'Whiskers', petBreed: 'Persian Cat', ownerName: 'Raj Patel', ownerEmail: 'raj@example.com' },
+      { petId: 'demo-rocky', petName: 'Rocky', petBreed: 'Labrador', ownerName: 'Amit Kumar', ownerEmail: 'amit@example.com' },
+      { petId: 'demo-max', petName: 'Max', petBreed: 'German Shepherd', ownerName: 'Sneha Reddy', ownerEmail: 'sneha@example.com' },
+    ];
+
+    // Add patients from active appointments
+    appointments.forEach(apt => {
+      if (apt.pet_name) {
+        const alreadyExists = list.some(p => p.petName.toLowerCase() === apt.pet_name?.toLowerCase() && p.ownerEmail === apt.owner_email);
+        if (!alreadyExists) {
+          list.push({
+            petId: apt.pet_id || `apt-${apt.id}`,
+            petName: apt.pet_name,
+            petBreed: apt.pet_breed || 'Unknown',
+            ownerName: apt.owner_name || 'Pet Owner',
+            ownerEmail: apt.owner_email || 'owner@example.com',
+          });
+        }
+      }
+    });
+
+    // Add patients from local pets
+    try {
+      const localSaved = localStorage.getItem('pawscheck_local_pets');
+      if (localSaved) {
+        const localPets = JSON.parse(localSaved);
+        const activeEmail = localStorage.getItem('pawscheck_user_email') || 'owner@example.com';
+        const activeName = localStorage.getItem('pawscheck_user_name') || 'Pet Owner';
+        localPets.forEach((pet: any) => {
+          const alreadyExists = list.some(p => p.petName.toLowerCase() === pet.name?.toLowerCase() && p.ownerEmail === activeEmail);
+          if (!alreadyExists) {
+            list.push({
+              petId: pet.id,
+              petName: pet.name,
+              petBreed: pet.breed || 'Unknown',
+              ownerName: activeName,
+              ownerEmail: activeEmail,
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.error("Error reading local pets for prescription builder", e);
+    }
+
+    setPatients(list);
+    
+    // Auto-select or refresh selectedPatient references
+    if (list.length > 0) {
+      const currentSelected = list.find(p => p.petId === selectedPet);
+      if (currentSelected) {
+        setSelectedPatient(currentSelected);
+      } else {
+        setSelectedPet(list[0].petId);
+        setSelectedPatient(list[0]);
+      }
+    }
+  }, [appointments]);
+
+  const handlePatientChange = (petId: string) => {
+    setSelectedPet(petId);
+    const found = patients.find(p => p.petId === petId);
+    if (found) {
+      setSelectedPatient(found);
+    }
+  };
 
   const addMedication = () => {
     setMedications(prev => [...prev, { ...EMPTY_MED, id: `med-${Date.now()}` }]);
@@ -92,9 +178,36 @@ export default function PrescriptionBuilder() {
       const validMeds = medications.filter(m => m.medicationName);
       const medsText = validMeds.map(m => `• ${m.medicationName} (${m.dosage}) — ${m.frequency} for ${m.duration}.\n  Route: ${m.route}. Guidance: "${m.instructions || 'Standard routine'}"\n  Reminder Trigger: ${m.reminderTime}`).join('\n\n');
       
+      const petName = selectedPatient ? selectedPatient.petName : 'Bruno';
+      const ownerEmail = selectedPatient ? selectedPatient.ownerEmail : 'priya@example.com';
+      const ownerName = selectedPatient ? selectedPatient.ownerName : 'Priya Sharma';
+      const petBreed = selectedPatient ? selectedPatient.petBreed : 'Golden Retriever';
+
+      const rxId = `rx-${Date.now()}`;
+      
+      // Save prescription to pawscheck_prescriptions
+      const newRx = {
+        id: rxId,
+        petName,
+        petBreed,
+        ownerName,
+        ownerEmail,
+        vetName: 'Dr. Sharma',
+        clinicName: 'PawCare Veterinary Clinic',
+        medications: validMeds,
+        notes: notes || 'Complete full dosage schedule as indicated.',
+        status: 'active',
+        createdAt: new Date().toLocaleDateString()
+      };
+
+      const existingRx = localStorage.getItem('pawscheck_prescriptions');
+      const rxArr = existingRx ? JSON.parse(existingRx) : [];
+      localStorage.setItem('pawscheck_prescriptions', JSON.stringify([newRx, ...rxArr]));
+
+      // Save to consultations for backwards compatibility
       const record = {
         id: `rx-portal-${Date.now()}`,
-        pet_name: selectedPet,
+        pet_name: petName,
         date: new Date().toLocaleDateString(),
         summary: `OFFICIAL CLINICAL E-PRESCRIPTION ORDER:\n\nPrescribed Regimen:\n${medsText}\n\nClinician Notes:\n${notes || 'Complete full dosage schedule as indicated.'}`,
         status: 'Prescribed'
@@ -146,13 +259,14 @@ export default function PrescriptionBuilder() {
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Patient</label>
               <select
                 value={selectedPet}
-                onChange={e => setSelectedPet(e.target.value)}
+                onChange={e => handlePatientChange(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500/50"
               >
-                <option value="Bruno">Bruno — Golden Retriever (Owner: Priya Sharma)</option>
-                <option value="Whiskers">Whiskers — Persian Cat (Owner: Raj Patel)</option>
-                <option value="Rocky">Rocky — Labrador (Owner: Amit Kumar)</option>
-                <option value="Max">Max — German Shepherd (Owner: Sneha Reddy)</option>
+                {patients.map(p => (
+                  <option key={p.petId} value={p.petId}>
+                    {p.petName} — {p.petBreed} (Owner: {p.ownerName})
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -317,7 +431,7 @@ export default function PrescriptionBuilder() {
                     {medications.filter(m => m.medicationName).length > 0
                       ? medications.filter(m => m.medicationName).map(m => m.medicationName).join(', ')
                       : '...'
-                    }{' '}for {selectedPet}.
+                    }{' '}for {selectedPatient ? selectedPatient.petName : 'Bruno'}.
                   </p>
                   <p className="text-xs text-slate-500 mt-1">Medication reminders have been set automatically.</p>
                 </div>
@@ -374,7 +488,7 @@ export default function PrescriptionBuilder() {
                 className="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3 text-center"
               >
                 <p className="text-xs text-emerald-400 font-medium">
-                  ✅ Prescription saved to {selectedPet}'s profile<br />
+                  ✅ Prescription saved to {selectedPatient ? selectedPatient.petName : 'Bruno'}'s profile<br />
                   📱 Owner notified with medication reminders<br />
                   💊 Auto-added to Care Plan
                 </p>

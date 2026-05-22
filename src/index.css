@@ -11,3 +11,199 @@
     @apply bg-slate-50 text-slate-900 antialiased;
   }
 }
+
+/* Custom laser scanner sweep animation */
+@keyframes laser-scan {
+  0% {
+    top: 0%;
+  }
+  50% {
+    top: 100%;
+  }
+  100% {
+    top: 0%;
+  }
+}
+
+.animate-laser-scan {
+  animation: laser-scan 2.5s infinite linear;
+}
+
+/* CUSTOMER PORTAL - DARK MODE STYLE OVERRIDES */
+.dark body {
+  background-color: #090d16 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .bg-white {
+  background-color: #111726 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: #1a2236 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .border-slate-200 {
+  border-color: #243049 !important;
+}
+
+.dark .border-slate-100 {
+  border-color: #243049 !important;
+}
+
+.dark .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+
+.dark .text-slate-900 {
+  color: #ffffff !important;
+}
+
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-slate-500 {
+  color: #64748b !important;
+}
+
+.dark header {
+  background-color: #111726 !important;
+  border-color: #243049 !important;
+}
+
+.dark input, .dark select, .dark textarea {
+  background-color: #1a2236 !important;
+  border-color: #243049 !important;
+  color: #ffffff !important;
+}
+
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1a2236 !important;
+}
+
+.dark .bg-slate-50\/30 {
+  background-color: rgba(26, 34, 54, 0.3) !important;
+}
+
+/* DOCTOR PORTAL - LIGHT MODE STYLE OVERRIDES */
+.doctor-light .bg-slate-950 {
+  background-color: #f8fafc !important;
+}
+
+.doctor-light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+.doctor-light .bg-slate-900\/80 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.doctor-light .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+}
+
+.doctor-light .bg-slate-800\/80 {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+.doctor-light .bg-slate-800\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+.doctor-light .bg-slate-950\/40 {
+  background-color: #f8fafc !important;
+}
+
+.doctor-light .border-slate-800 {
+  border-color: #e2e8f0 !important;
+}
+
+.doctor-light .border-slate-800\/50 {
+  border-color: #e2e8f0 !important;
+}
+
+.doctor-light .border-slate-700 {
+  border-color: #e2e8f0 !important;
+}
+
+.doctor-light .border-slate-700\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+.doctor-light .text-white {
+  color: #0f172a !important;
+}
+
+.doctor-light .text-slate-400 {
+  color: #475569 !important;
+}
+
+.doctor-light .text-slate-500 {
+  color: #64748b !important;
+}
+
+.doctor-light .text-slate-600 {
+  color: #475569 !important;
+}
+
+.doctor-light .hover\:bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.doctor-light .hover\:text-slate-200:hover {
+  color: #0f172a !important;
+}
+
+.doctor-light input, .doctor-light select, .doctor-light textarea {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.doctor-light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.doctor-light header {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+.doctor-light .text-emerald-400 {
+  color: #059669 !important; /* Deeper green for light accessibility */
+}
+
+.doctor-light .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.doctor-light .bg-slate-900 {
+  color: #0f172a !important;
+}
+
+/* PORTAL BACKGROUND THEMES */
+.owner-portal-bg {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+  transition: background-color 0.3s ease;
+}
+.dark .owner-portal-bg {
+  background: radial-gradient(circle at top left, #0b1528, #050811) !important;
+}
+
+.doctor-portal-bg {
+  background: radial-gradient(circle at top left, #051610, #010604) !important;
+  transition: background-color 0.3s ease;
+}
+.doctor-light .doctor-portal-bg {
+  background: linear-gradient(135deg, #f0fdf4 0%, #f1f5f9 100%) !important;
+}
+
+

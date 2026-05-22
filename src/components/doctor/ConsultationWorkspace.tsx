@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   User, Heart, Thermometer, Activity, Wind, Scale, FileText, Save,
@@ -70,13 +70,31 @@ export default function ConsultationWorkspace() {
   const [saved, setSaved] = useState(false);
   const [transmitted, setTransmitted] = useState(false);
 
+  useEffect(() => {
+    if (activeCustomApt) {
+      setFormData(prev => ({
+        ...prev,
+        weight: activeCustomApt.pet_weight ? String(activeCustomApt.pet_weight) : '32'
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        weight: '32'
+      }));
+    }
+  }, [selectedPatientId]);
+
   const pet = activeCustomApt ? {
     name: activeCustomApt.pet_name || 'My Pet',
     breed: activeCustomApt.pet_breed || 'Unknown',
-    species: 'Dog',
-    age: 3,
-    weight: '32 kg'
-  } : DEMO_PATIENT.pet;
+    species: activeCustomApt.pet_species || 'Dog',
+    age: activeCustomApt.pet_age !== undefined ? activeCustomApt.pet_age : 3,
+    weight: activeCustomApt.pet_weight ? `${activeCustomApt.pet_weight} kg` : '32 kg',
+    previous_medications: activeCustomApt.previous_medications || ''
+  } : {
+    ...DEMO_PATIENT.pet,
+    previous_medications: 'None'
+  };
 
   const owner = activeCustomApt ? {
     name: activeCustomApt.owner_name || 'Pet Owner',
@@ -219,6 +237,12 @@ export default function ConsultationWorkspace() {
               </div>
             ))
           )}
+          <div className="border-t border-slate-800 mt-4 pt-3">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Previous / Owner-Reported Meds</p>
+            <p className="text-xs text-slate-300 font-medium">
+              {pet.previous_medications || 'None recorded'}
+            </p>
+          </div>
         </div>
 
         {/* Medical History */}

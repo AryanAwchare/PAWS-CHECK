@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Stethoscope, ShieldCheck, Zap, Heart, ArrowRight, PawPrint, UserCog } from 'lucide-react';
+import { Stethoscope, ShieldCheck, Zap, Heart, ArrowRight, PawPrint, UserCog, Sun, Moon } from 'lucide-react';
 
 interface LandingProps {
   onGetStarted: (role?: 'owner' | 'veterinarian') => void;
@@ -7,6 +8,21 @@ interface LandingProps {
 }
 
 export default function Landing({ onGetStarted, onSelectRole }: LandingProps) {
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('pawscheck_theme');
+    return saved === 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
+
+  const toggleTheme = () => {
+    const nextDark = !isDark;
+    setIsDark(nextDark);
+    localStorage.setItem('pawscheck_theme', nextDark ? 'dark' : 'light');
+  };
+
   const handleRoleSelect = (role: 'owner' | 'veterinarian') => {
     if (onSelectRole) {
       onSelectRole(role);
@@ -29,6 +45,13 @@ export default function Landing({ onGetStarted, onSelectRole }: LandingProps) {
           
           {/* Explicit separate login options for customer and doctor */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2.5 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors mr-1 flex items-center justify-center border border-slate-200 dark:border-slate-800"
+              title="Toggle Theme Mode"
+            >
+              {isDark ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
             <button
               onClick={() => onGetStarted('owner')}
               className="bg-blue-50 text-blue-600 border border-blue-200 px-3 sm:px-4 py-2 rounded-full font-bold text-xs sm:text-sm hover:bg-blue-100 transition-all shadow-sm flex items-center gap-1.5"

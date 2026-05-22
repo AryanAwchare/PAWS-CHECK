@@ -11,6 +11,8 @@ export interface Pet {
   age: number;
   profile_picture_url?: string;
   medical_history?: string;
+  weight?: string | number;
+  previous_medications?: string;
 }
 
 interface PetContextType {
@@ -57,11 +59,16 @@ export function PetProvider({ children, userId }: { children: React.ReactNode, u
 
     // Start completely authentic and clean without forcing fake pre-populated pets
 
+    // Filter local pets down precisely to the signed-in user's boundary to guarantee multi-user simulation isolation
+    const userScopedLocalPets = localPets.filter((p: any) => p.owner_id === userId);
+
     // If using prototype or demo unverified account, load local cache straight away
     if (!userId || isGuest || userId.includes('00000000')) {
-      setPets(localPets);
-      if (localPets.length > 0 && (!activePetId || !localPets.find(p => p.id === activePetId))) {
-        setActivePetId(localPets[0].id);
+      setPets(userScopedLocalPets);
+      if (userScopedLocalPets.length > 0 && (!activePetId || !userScopedLocalPets.find(p => p.id === activePetId))) {
+        setActivePetId(userScopedLocalPets[0].id);
+      } else if (userScopedLocalPets.length === 0) {
+        setActivePetId(null);
       }
       setLoading(false);
       return;
@@ -85,16 +92,20 @@ export function PetProvider({ children, userId }: { children: React.ReactNode, u
         }
       } else {
         // Safe state merge: fall back to local offline pets if remote table returns empty rows
-        setPets(localPets);
-        if (localPets.length > 0 && (!activePetId || !localPets.find(p => p.id === activePetId))) {
-          setActivePetId(localPets[0].id);
+        setPets(userScopedLocalPets);
+        if (userScopedLocalPets.length > 0 && (!activePetId || !userScopedLocalPets.find(p => p.id === activePetId))) {
+          setActivePetId(userScopedLocalPets[0].id);
+        } else if (userScopedLocalPets.length === 0) {
+          setActivePetId(null);
         }
       }
     } catch (err) {
       console.warn("Failed to retrieve remote pets, binding local persistence items:", err);
-      setPets(localPets);
-      if (localPets.length > 0 && (!activePetId || !localPets.find(p => p.id === activePetId))) {
-        setActivePetId(localPets[0].id);
+      setPets(userScopedLocalPets);
+      if (userScopedLocalPets.length > 0 && (!activePetId || !userScopedLocalPets.find(p => p.id === activePetId))) {
+        setActivePetId(userScopedLocalPets[0].id);
+      } else if (userScopedLocalPets.length === 0) {
+        setActivePetId(null);
       }
     }
     setLoading(false);

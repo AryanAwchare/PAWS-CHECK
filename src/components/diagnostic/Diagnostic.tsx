@@ -2,36 +2,44 @@ import { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Upload, Camera, AlertCircle, Loader2, Info } from 'lucide-react';
 import { usePet } from '../../context/PetContext';
-import { supabase } from '../../lib/supabase';
 import ScanResults from './ScanResults';
+import { callGemini, fileToGeminiPart } from '../../lib/geminiClient';
+import PetInteractiveSelector from './PetInteractiveSelector';
 
 export default function Diagnostic() {
   const { activePet } = usePet();
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [base64Data, setBase64Data] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [logId, setLogId] = useState<string | null>(null); // State to switch to results view
+  const [logId, setLogId] = useState<string | null>(null);
+  const [geminiResult, setGeminiResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 20 * 1024 * 1024) {
-        setError("File size exceeds 20MB limit.");
+        setError('File size exceeds 20MB limit.');
         return;
       }
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
       setError(null);
+
+      // Read as base64 immediately
+      const reader = new FileReader();
+      reader.onload = () => setBase64Data(reader.result as string);
+      reader.readAsDataURL(file);
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !base64Data) return;
     if (!activePet) {
-      setError("Please select a pet from the top menu first.");
+      setError('Please select a pet from the top menu first.');
       return;
     }
 
@@ -39,90 +47,118 @@ export default function Diagnostic() {
     setError(null);
 
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => {
-          resolve(reader.result as string); // Need the full data URL for our Express backend
-        };
-      });
-      reader.readAsDataURL(selectedFile);
-      const base64 = await base64Promise;
+      const prompt = `You are a veterinary AI triage assistant. Analyze this image of a pet (${activePet.species || 'dog'}, breed: ${activePet.breed || 'unknown'}, age: ${activePet.age || 'unknown'} years).
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const ownerId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
+Owner's description: "${questionnaire || 'No additional description provided.'}"
 
-      // Send payload to our Express backend
-      const response = await fetch('/api/triage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          petId: activePet.id,
-          ownerId: ownerId,
-          imageBase64: base64,
-          mimeType: selectedFile.type,
-          petContext: { age: activePet.age, breed: activePet.breed, species: activePet.species },
-          questionnaire: { symptoms: questionnaire }
-        })
-      });
+Respond ONLY with a valid JSON object — no markdown fences, no extra text. Ensure all strings are properly escaped (no literal newlines or unescaped quotes inside strings).
+Schema:
+{
+  "disease_name": "short clinical name",
+  "occurrence_rate": "how common this is",
+  "risk_score": number between 0-100,
+  "triage_tier": "HEALTHY" | "MONITOR" | "URGENT" | "EMERGENCY",
+  "ai_explanation": "2-3 sentence clinical explanation based on visual cues and user description",
+  "clinical_reasons": "detailed clinical reasoning with references to common presentations",
+  "probable_causes": ["cause1", "cause2", "cause3"],
+  "detected_symptoms": ["symptom1", "symptom2"],
+  "critical_level_factors": ["factor1", "factor2"],
+  "vet_action_required": "recommended vet action",
+  "recommendation": "short home care recommendation"
+}`;
 
-      const result = await response.json();
+      const imagePart = fileToGeminiPart(base64Data, selectedFile.type || 'image/jpeg');
+      
+      let parsed = null;
+      let attempts = 0;
+      let lastRaw = "";
+      
+      while (attempts < 3 && !parsed) {
+        attempts++;
+        try {
+          const raw = await callGemini([{ text: prompt }, imagePart]);
+          lastRaw = raw;
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to process triage.");
+          let cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            cleaned = jsonMatch[0];
+          }
+          cleaned = cleaned.replace(/[\u0000-\u001F]+/g, " ");
+          parsed = JSON.parse(cleaned);
+        } catch (e) {
+          console.warn(`Attempt ${attempts} failed to parse JSON. Retrying...`, e);
+          if (attempts >= 3) {
+            console.error("Raw output that failed parsing on final attempt:", lastRaw);
+            throw new Error("AI returned malformed data after multiple attempts. The AI might be struggling to format the results. Please try again.");
+          }
+          // Wait 2 seconds before retrying
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
 
-      // Success! Switch the view to ScanResults
-      setLogId(result.log_id);
-
+      const id = `gemini-log-${Date.now()}`;
+      setGeminiResult({ ...parsed, id });
+      setLogId(id);
     } catch (err: any) {
-      console.warn("Backend triage proxy encountered exception, launching intelligent local AI simulation fallback:", err);
-      // Fallback straight to an ultra-premium simulated log result to guarantee client evaluation isn't halted by database foreign key/UUID strictness
-      setTimeout(() => {
-        setLogId(`local-log-${Date.now()}`);
-      }, 600);
+      console.error('Gemini triage error:', err);
+      setError(`AI scan failed: ${err.message || 'Unknown error'}. Please try again.`);
     } finally {
       setIsUploading(false);
     }
   };
 
-  // If we have a successful scan, render the beautiful Results page!
-  if (logId) {
-    return <ScanResults logId={logId} uploadedImage={previewUrl || undefined} onClose={() => {
-      setLogId(null);
-      setSelectedFile(null);
-      setPreviewUrl(null);
-      setQuestionnaire('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }} />;
+  // Show results page after successful scan
+  if (logId && geminiResult) {
+    return (
+      <ScanResults
+        logId={logId}
+        uploadedImage={previewUrl || undefined}
+        prefetchedReport={geminiResult}
+        onClose={() => {
+          setLogId(null);
+          setGeminiResult(null);
+          setSelectedFile(null);
+          setPreviewUrl(null);
+          setBase64Data(null);
+          setQuestionnaire('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }}
+      />
+    );
   }
 
-  // Otherwise, render the Upload form
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4">
+      {/* Interactive SVG Hot-Spot Pet Silhouette Selector */}
+      <PetInteractiveSelector onSelectSymptom={(symptom) => setQuestionnaire(prev => prev ? `${prev}\n\n${symptom}` : symptom)} />
+
       <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-800 mb-2">Visual Triage Scanner</h2>
-        <p className="text-slate-500 mb-8">Upload a clear image of the affected area and provide a brief description. Our AI will analyze the symptoms for your vet.</p>
-        
+        <p className="text-slate-500 mb-8">
+          Upload a clear image of the affected area and provide a brief description. Gemini AI will analyze the symptoms for your vet.
+        </p>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Left Column: Image Upload */}
+          {/* Left: Image Upload */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">1. Media Upload</h3>
-            <div 
+            <div
               onClick={() => fileInputRef.current?.click()}
               className={`relative border-2 border-dashed rounded-xl h-64 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden ${
-                previewUrl ? 'border-blue-300 bg-blue-50/20' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-blue-400'
+                previewUrl
+                  ? 'border-blue-300 bg-blue-50/20'
+                  : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-blue-400'
               }`}
             >
               {previewUrl ? (
                 <>
-                  {selectedFile?.type.startsWith('image') ? (
-                    <img src={previewUrl} className="w-full h-full object-cover" />
-                  ) : (
-                    <video src={previewUrl} className="w-full h-full object-cover" controls />
+                  <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
+                  {isUploading && (
+                    <div className="absolute left-0 right-0 h-1 bg-cyan-400 shadow-[0_0_10px_#22d3ee] animate-laser-scan pointer-events-none" />
                   )}
                   <div className="absolute inset-0 bg-slate-900/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold tracking-wide">
-                    Click to Change Media
+                    Click to Change
                   </div>
                 </>
               ) : (
@@ -132,12 +168,12 @@ export default function Diagnostic() {
                   <p className="text-xs text-slate-400 mt-1">Make sure the area is well-lit.</p>
                 </div>
               )}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                accept="image/*" 
-                className="hidden" 
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                className="hidden"
               />
             </div>
             {selectedFile && (
@@ -148,7 +184,7 @@ export default function Diagnostic() {
             )}
           </div>
 
-          {/* Right Column: Questionnaire */}
+          {/* Right: Questionnaire */}
           <div className="space-y-4 flex flex-col">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">2. Symptoms Description</h3>
             <textarea
@@ -165,7 +201,7 @@ export default function Diagnostic() {
               </div>
             )}
 
-            <button 
+            <button
               onClick={handleUpload}
               disabled={!selectedFile || isUploading}
               className="w-full bg-blue-600 text-white rounded-xl py-4 font-bold disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
@@ -173,7 +209,7 @@ export default function Diagnostic() {
               {isUploading ? (
                 <>
                   <Loader2 className="animate-spin" size={20} />
-                  Analyzing Symptoms...
+                  Analyzing image & symptoms...
                 </>
               ) : (
                 'Run Clinical Triage'
@@ -185,7 +221,7 @@ export default function Diagnostic() {
 
       <div className="text-xs text-slate-400 italic text-center px-4 flex items-center justify-center gap-2">
         <Info size={14} />
-        This system is powered by AI and designed for triage. It does not replace a veterinary diagnosis.
+        Powered by Google Gemini AI. This is a triage aid, not a replacement for veterinary diagnosis.
       </div>
     </div>
   );

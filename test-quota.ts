@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 async function run() {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
   const models = ['gemini-2.5-flash', 'gemini-3.1-pro-preview', 'gemini-flash-latest'];
   for (const m of models) {
       try {

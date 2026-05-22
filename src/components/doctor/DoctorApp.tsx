@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard, Users, Clock, CalendarCheck, FileText, Pill,
   LogOut, Menu, X, Stethoscope, Bell, ChevronDown, ToggleLeft, ToggleRight,
-  CheckCircle2
+  CheckCircle2, Sun, Moon
 } from 'lucide-react';
 import { DoctorProvider, useDoctor } from '../../context/DoctorContext';
 import DoctorDashboard from './DoctorDashboard';
@@ -17,13 +17,58 @@ type DoctorTab = 'dashboard' | 'patients' | 'queue' | 'appointments' | 'consulta
 
 interface DoctorAppProps {
   onExit: () => void;
+  userName?: string;
 }
 
-function DoctorAppInner({ onExit }: DoctorAppProps) {
+function DoctorAppInner({ onExit, userName }: DoctorAppProps) {
   const [activeTab, setActiveTab] = useState<DoctorTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const { vetProfile, pendingRequests, stats } = useDoctor();
+
+  const [prevPending, setPrevPending] = useState(pendingRequests.length);
+  const [toast, setToast] = useState<{ show: boolean; title: string; desc: string } | null>(null);
+
+  const [isLight, setIsLight] = useState(() => {
+    const saved = localStorage.getItem('pawscheck_doctor_theme');
+    return saved === 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('doctor-light', isLight);
+    document.documentElement.classList.remove('dark');
+    return () => {
+      document.documentElement.classList.remove('doctor-light');
+    };
+  }, [isLight]);
+
+  useEffect(() => {
+    if (pendingRequests.length > prevPending) {
+      const newRequest = pendingRequests[pendingRequests.length - 1] || pendingRequests[0];
+      if (newRequest) {
+        try {
+          const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = context.createOscillator();
+          const gain = context.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, context.currentTime); // A5 note
+          gain.gain.setValueAtTime(0.1, context.currentTime); // Comfort volume
+          osc.connect(gain);
+          gain.connect(context.destination);
+          osc.start();
+          osc.stop(context.currentTime + 0.2);
+        } catch (e) {}
+
+        setToast({
+          show: true,
+          title: '🚨 New Appointment Request',
+          desc: `${newRequest.pet_name || 'Pet'} (${newRequest.pet_breed || 'Unknown'}) has been registered for consultation.`
+        });
+        setTimeout(() => setToast(null), 6000);
+      }
+    }
+    setPrevPending(pendingRequests.length);
+  }, [pendingRequests.length]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,9 +80,9 @@ function DoctorAppInner({ onExit }: DoctorAppProps) {
   ];
 
   return (
-    <div className="min-h-screen h-screen bg-slate-950 flex overflow-hidden font-sans">
+    <div className="min-h-screen h-screen doctor-portal-bg flex overflow-hidden font-sans">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 flex-col shrink-0">
+      <aside className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 flex-col shrink-0 animate-fade-in">
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white">
@@ -79,12 +124,12 @@ function DoctorAppInner({ onExit }: DoctorAppProps) {
           <div className="bg-slate-800/50 rounded-2xl p-4">
             <div className="flex items-center gap-3">
               <img
-                src={`https://ui-avatars.com/api/?name=Dr+Sharma&background=10b981&color=ffffff&bold=true`}
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'Doctor')}&background=10b981&color=ffffff&bold=true`}
                 className="w-10 h-10 rounded-full border-2 border-emerald-500/30"
                 alt="Doctor"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">Dr. Sharma</p>
+                <p className="text-sm font-bold text-white truncate">{userName || 'Dr. Sharma'}</p>
                 <p className="text-[10px] text-slate-400 truncate">{vetProfile?.clinic_name}</p>
               </div>
             </div>
@@ -173,6 +218,19 @@ function DoctorAppInner({ onExit }: DoctorAppProps) {
           </div>
 
           <div className="flex items-center gap-4 relative">
+            {/* Theme Toggle Button */}
+            <button
+              onClick={() => {
+                const next = !isLight;
+                setIsLight(next);
+                localStorage.setItem('pawscheck_doctor_theme', next ? 'light' : 'dark');
+              }}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors flex items-center justify-center border border-slate-800"
+              title="Toggle Doctor Theme Mode"
+            >
+              {isLight ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+
             {/* Clickable Notification Bell */}
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
@@ -180,9 +238,12 @@ function DoctorAppInner({ onExit }: DoctorAppProps) {
                 showNotifications ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
               }`}
             >
+              {pendingRequests.length > 0 && (
+                <span className="absolute inset-0 rounded-xl bg-red-500/20 animate-ping pointer-events-none"></span>
+              )}
               <Bell size={20} />
               {pendingRequests.length > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center animate-pulse">
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center border-2 border-slate-900">
                   {pendingRequests.length}
                 </span>
               )}
@@ -254,7 +315,7 @@ function DoctorAppInner({ onExit }: DoctorAppProps) {
             {/* Mobile Profile */}
             <div className="lg:hidden flex items-center gap-2">
               <img
-                src={`https://ui-avatars.com/api/?name=Dr+Sharma&background=10b981&color=ffffff&bold=true`}
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'Doctor')}&background=10b981&color=ffffff&bold=true`}
                 className="w-8 h-8 rounded-full"
                 alt="Doctor"
               />
@@ -283,14 +344,43 @@ function DoctorAppInner({ onExit }: DoctorAppProps) {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Toast Notification for incoming appointments */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-[9999] bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-2xl p-4 w-80 max-w-full flex gap-3.5 items-start hover:border-emerald-500/40 transition-colors text-left"
+          >
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+              <Bell size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">{toast.title}</h4>
+              <p className="text-xs text-slate-400 mt-1 leading-normal">{toast.desc}</p>
+              <button 
+                onClick={() => { setActiveTab('appointments'); setToast(null); }}
+                className="mt-2 text-[10px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider block"
+              >
+                Review Request
+              </button>
+            </div>
+            <button onClick={() => setToast(null)} className="text-slate-500 hover:text-white shrink-0">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-export default function DoctorApp({ onExit }: DoctorAppProps) {
+export default function DoctorApp({ onExit, userName }: DoctorAppProps) {
   return (
     <DoctorProvider>
-      <DoctorAppInner onExit={onExit} />
+      <DoctorAppInner onExit={onExit} userName={userName} />
     </DoctorProvider>
   );
 }

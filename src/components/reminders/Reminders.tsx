@@ -20,21 +20,53 @@ export default function Reminders() {
   const [appointmentUrgency, setAppointmentUrgency] = useState('normal');
   const [attachReport, setAttachReport] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [appointmentDate, setAppointmentDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [appointmentTime, setAppointmentTime] = useState('10:00');
+
+  const [petWeight, setPetWeight] = useState('');
+  const [petAge, setPetAge] = useState('');
+  const [previousMedications, setPreviousMedications] = useState('');
+
+  useEffect(() => {
+    if (activePet) {
+      setPetWeight(activePet.weight ? String(activePet.weight) : '');
+      setPetAge(activePet.age ? String(activePet.age) : '');
+      setPreviousMedications(activePet.previous_medications || '');
+    } else {
+      setPetWeight('');
+      setPetAge('');
+      setPreviousMedications('');
+    }
+  }, [showAppointmentModal, activePet]);
 
   const handleBookAppointment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!appointmentReason.trim()) return;
 
-    const fullReason = attachReport 
-      ? `${appointmentReason}\n\n[📎 Attached Visual AI Diagnostic Report: Score 85/100 — Flagged URGENT. Erythema observed on ventral layout.]`
+    const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+    const fullReason = attachReport
+      ? `${appointmentReason}\n\n[📎 Attached Visual AI Diagnostic Report — Latest scan attached by owner]`
       : appointmentReason;
+
+    let selectedDateTime = new Date().toISOString();
+    try {
+      if (appointmentDate && appointmentTime) {
+        selectedDateTime = new Date(`${appointmentDate}T${appointmentTime}`).toISOString();
+      }
+    } catch (e) {
+      console.warn("Date parsing failed", e);
+    }
 
     const newAppointment = {
       id: `app-custom-${Date.now()}`,
       pet_id: activePet?.id || `pet-${Date.now()}`,
       owner_id: userId || `owner-${Date.now()}`,
-      vet_id: '11111111-1111-1111-1111-111111111111',
-      appointment_date: new Date().toISOString(),
+      owner_email: activeEmail,
+      vet_id: 'vet-active',
+      appointment_date: selectedDateTime,
       duration_minutes: 30,
       status: 'pending',
       type: 'scheduled',
@@ -42,7 +74,11 @@ export default function Reminders() {
       urgency_level: appointmentUrgency,
       pet_name: activePet?.name || 'My Pet',
       owner_name: localStorage.getItem('pawscheck_user_name') || 'Pet Owner',
-      pet_breed: activePet?.breed || 'Unknown'
+      pet_breed: activePet?.breed || 'Unknown',
+      pet_species: activePet?.species || 'Dog',
+      pet_weight: petWeight,
+      pet_age: petAge ? parseInt(petAge) : undefined,
+      previous_medications: previousMedications
     };
 
     try {
@@ -64,17 +100,22 @@ export default function Reminders() {
   const [myAppointments, setMyAppointments] = useState<any[]>([]);
   const [completedReports, setCompletedReports] = useState<any[]>([]);
 
-  // Periodically survey live shared memory structures to broadcast vet validation feedback immediately onto the owner portal
+  // Poll for appointment status updates — filtered to only this user's email
   useEffect(() => {
     const poll = () => {
       try {
+        const activeEmail = localStorage.getItem('pawscheck_user_email');
         const stored = localStorage.getItem('pawscheck_custom_appointments');
-        if (stored) {
-          setMyAppointments(JSON.parse(stored));
+        if (stored && activeEmail) {
+          const all = JSON.parse(stored);
+          // Only show this user's appointments
+          setMyAppointments(all.filter((a: any) => a.owner_email === activeEmail));
         }
         const rep = localStorage.getItem('pawscheck_completed_consultations');
         if (rep) {
-          setCompletedReports(JSON.parse(rep));
+          const activeEmail = localStorage.getItem('pawscheck_user_email');
+          const allReps = JSON.parse(rep);
+          setCompletedReports(activeEmail ? allReps.filter((r: any) => r.owner_email === activeEmail) : allReps);
         }
       } catch(e) {}
     };
@@ -467,6 +508,75 @@ export default function Reminders() {
                   />
                 </div>
                 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Consultation Date
+                    </label>
+                    <input 
+                      type="date"
+                      required
+                      value={appointmentDate}
+                      onChange={(e) => setAppointmentDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Consultation Time
+                    </label>
+                    <input 
+                      type="time"
+                      required
+                      value={appointmentTime}
+                      onChange={(e) => setAppointmentTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Pet Weight (kg)
+                    </label>
+                    <input 
+                      type="number"
+                      step="0.1"
+                      value={petWeight}
+                      onChange={(e) => setPetWeight(e.target.value)}
+                      placeholder="e.g., 10"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Pet Age (years)
+                    </label>
+                    <input 
+                      type="number"
+                      value={petAge}
+                      onChange={(e) => setPetAge(e.target.value)}
+                      placeholder="e.g., 3"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Previous Medications / Prescriptions
+                  </label>
+                  <input 
+                    type="text"
+                    value={previousMedications}
+                    onChange={(e) => setPreviousMedications(e.target.value)}
+                    placeholder="e.g., Apoquel, none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                     Urgency Classification
@@ -500,11 +610,13 @@ export default function Reminders() {
                   </span>
                   <button 
                     type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-100 transition-colors"
+                    disabled={!activePet}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-100 transition-colors disabled:opacity-50"
                   >
                     Broadcast Request
                   </button>
                 </div>
+                {!activePet && <p className="text-[10px] text-red-500 text-center mt-2 font-bold uppercase tracking-widest">Please create a pet profile first.</p>}
               </form>
             </motion.div>
           </div>

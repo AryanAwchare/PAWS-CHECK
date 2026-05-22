@@ -10,7 +10,7 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ onNavigate }: DoctorDashboardProps) {
-  const { stats, pendingRequests, queue, appointments, vetProfile } = useDoctor();
+  const { stats, pendingRequests, queue, appointments, vetProfile, updateAppointmentStatus } = useDoctor();
 
   const statCards = [
     { label: "Today's Patients", value: stats.todayPatients, icon: Users, color: 'emerald', trend: '+3 from yesterday' },
@@ -39,7 +39,7 @@ export default function DoctorDashboard({ onNavigate }: DoctorDashboardProps) {
       <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/5 rounded-2xl p-6 border border-emerald-500/10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black text-white">Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, Dr. Sharma 👋</h1>
+            <h1 className="text-2xl font-black text-white">Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, {localStorage.getItem('pawscheck_user_name') || 'Doctor'} 👋</h1>
             <p className="text-slate-400 mt-1">You have <span className="text-emerald-400 font-bold">{queue.filter(q => q.status === 'waiting').length} patients waiting</span> and <span className="text-amber-400 font-bold">{pendingRequests.length} pending requests</span></p>
           </div>
           <button
@@ -121,10 +121,16 @@ export default function DoctorDashboard({ onNavigate }: DoctorDashboardProps) {
                         </span>
                       )}
                       <div className="flex gap-1.5">
-                        <button className="w-7 h-7 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center transition-colors" title="Approve">
+                        <button 
+                          onClick={() => updateAppointmentStatus(req.id, 'approved')}
+                          className="w-7 h-7 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center transition-colors" title="Approve"
+                        >
                           <CheckCircle size={14} />
                         </button>
-                        <button className="w-7 h-7 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg flex items-center justify-center transition-colors" title="Reject">
+                        <button 
+                          onClick={() => updateAppointmentStatus(req.id, 'rejected', 'Declined from dashboard')}
+                          className="w-7 h-7 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg flex items-center justify-center transition-colors" title="Reject"
+                        >
                           <XCircle size={14} />
                         </button>
                       </div>

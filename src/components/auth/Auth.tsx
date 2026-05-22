@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Stethoscope, Loader2, ArrowLeft, UserCircle, PawPrint, UserCog } from 'lucide-react';
+import { Stethoscope, Loader2, ArrowLeft, UserCircle, PawPrint, UserCog, Sun, Moon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface AuthProps {
@@ -18,6 +18,20 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
   const [isSignUp, setIsSignUp] = useState(false);
   const [offlineMode, setOfflineMode] = useState(true);
 
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem('pawscheck_theme') === 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
+
+  const toggleTheme = () => {
+    const nextDark = !isDark;
+    setIsDark(nextDark);
+    localStorage.setItem('pawscheck_theme', nextDark ? 'dark' : 'light');
+  };
+
   const isVet = selectedRole === 'veterinarian';
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -29,11 +43,65 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
       // Store the requested role and typed credentials in localStorage to ensure user state saves seamlessly
       localStorage.setItem('pawscheck_role', selectedRole);
       if (email.trim()) {
-        localStorage.setItem('pawscheck_user_email', email.trim());
-        const generatedName = email.split('@')[0];
+        const cleanEmail = email.trim().toLowerCase();
+        localStorage.setItem('pawscheck_user_email', cleanEmail);
+        const generatedName = cleanEmail.split('@')[0];
         const prettyName = generatedName.charAt(0).toUpperCase() + generatedName.slice(1);
         localStorage.setItem('pawscheck_user_name', prettyName);
-        localStorage.setItem('pawscheck_user_id', '22222222-2222-2222-2222-222222222222');
+        
+        // Generate deterministic isolated user ID from email hash
+        let hash = 0;
+        for (let i = 0; i < cleanEmail.length; i++) {
+          hash = ((hash << 5) - hash) + cleanEmail.charCodeAt(i);
+          hash |= 0;
+        }
+        const uniqueHex = Math.abs(hash).toString(16).padStart(12, '0');
+        const customUserId = `00000000-0000-4000-8000-${uniqueHex}`;
+        localStorage.setItem('pawscheck_user_id', customUserId);
+
+        // Master Multi-User Table Database provisioning logic
+        const profilesStr = localStorage.getItem('pawscheck_multi_user_profiles');
+        const masterTable = profilesStr ? JSON.parse(profilesStr) : {};
+
+        if (isSignUp) {
+          // If signing up as a new user, initialize an entirely new clean slice for this person
+          masterTable[cleanEmail] = {
+            email: cleanEmail,
+            name: prettyName,
+            role: selectedRole,
+            userId: customUserId,
+            pets: [],
+            scans: [],
+            appointments: [],
+            consultations: []
+          };
+          localStorage.setItem('pawscheck_multi_user_profiles', JSON.stringify(masterTable));
+          // Synchronize local active arrays to blank state so dashboard renders no legacy records
+          localStorage.setItem('pawscheck_local_pets', JSON.stringify([]));
+          localStorage.setItem('pawscheck_user_scans', JSON.stringify([]));
+        } else {
+          // If signing in, retrieve their specific old saved data sections
+          if (masterTable[cleanEmail]) {
+            const userSection = masterTable[cleanEmail];
+            localStorage.setItem('pawscheck_local_pets', JSON.stringify(userSection.pets || []));
+            localStorage.setItem('pawscheck_user_scans', JSON.stringify(userSection.scans || []));
+          } else {
+            // Provision empty fallback table if logging in for the first time
+            masterTable[cleanEmail] = {
+              email: cleanEmail,
+              name: prettyName,
+              role: selectedRole,
+              userId: customUserId,
+              pets: [],
+              scans: [],
+              appointments: [],
+              consultations: []
+            };
+            localStorage.setItem('pawscheck_multi_user_profiles', JSON.stringify(masterTable));
+            localStorage.setItem('pawscheck_local_pets', JSON.stringify([]));
+            localStorage.setItem('pawscheck_user_scans', JSON.stringify([]));
+          }
+        }
       }
 
       // Completely skip external backend APIs to prevent Supabase 429 rate limit log alerts on the login screen
@@ -59,6 +127,17 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
         >
           <ArrowLeft size={16} /> Back to Home
         </button>
+
+        <div className="absolute -top-14 right-4 sm:right-0">
+          <button
+            onClick={toggleTheme}
+            className="p-2.5 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"
+            title="Toggle Theme Mode"
+            type="button"
+          >
+            {isDark ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+        </div>
 
         {/* Dynamic Header Icon */}
         <div className="flex justify-center">
@@ -144,19 +223,7 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
             </button>
           </div>
 
-          {/* Active Offline Prototype Bypass Mode */}
-          <div className="mb-6 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3">
-            <div className="flex flex-col text-left">
-              <span className="text-[11px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Local Simulation Engaged
-              </span>
-              <span className="text-[10px] font-medium text-amber-700 leading-tight mt-0.5">
-                Bypassing external backend APIs to prevent Supabase 429 rate limit log alerts.
-              </span>
-            </div>
-            <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase">Armed</span>
-          </div>
+          {/* Offline prototype logic runs invisibly in the background */}
 
           <form className="space-y-6" onSubmit={handleAuth}>
             <div>
@@ -231,7 +298,45 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
             <button
               type="button"
               onClick={() => {
+                const email = selectedRole === 'veterinarian' ? 'demo-doctor@pawscheck.com' : 'demo-customer@pawscheck.com';
+                const name = selectedRole === 'veterinarian' ? 'Dr. Sarah Jenkins' : 'Demo Customer';
+                const id = selectedRole === 'veterinarian' ? '00000000-0000-0000-0000-000000doctor' : '00000000-0000-0000-0000-00000customer';
                 localStorage.setItem('pawscheck_role', selectedRole);
+                localStorage.setItem('pawscheck_user_email', email);
+                localStorage.setItem('pawscheck_user_name', name);
+                localStorage.setItem('pawscheck_user_id', id);
+
+                // Clear previous local states and load multi-user demo profiles
+                const profilesStr = localStorage.getItem('pawscheck_multi_user_profiles');
+                const masterTable = profilesStr ? JSON.parse(profilesStr) : {};
+                if (!masterTable[email]) {
+                  masterTable[email] = {
+                    email,
+                    name,
+                    role: selectedRole,
+                    userId: id,
+                    pets: selectedRole === 'veterinarian' ? [] : [
+                      {
+                        id: '00000000-0000-0000-0000-0000000buddy',
+                        owner_id: id,
+                        name: 'Buddy',
+                        species: 'Dog',
+                        breed: 'Golden Retriever',
+                        age: 3,
+                        profile_picture_url: `https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=1000`,
+                        medical_history: 'No known chronic ailments.'
+                      }
+                    ],
+                    scans: [],
+                    appointments: [],
+                    consultations: []
+                  };
+                  localStorage.setItem('pawscheck_multi_user_profiles', JSON.stringify(masterTable));
+                }
+                const userSection = masterTable[email];
+                localStorage.setItem('pawscheck_local_pets', JSON.stringify(userSection.pets || []));
+                localStorage.setItem('pawscheck_user_scans', JSON.stringify(userSection.scans || []));
+
                 onGuest(selectedRole);
               }}
               className="mt-4 flex w-full justify-center items-center gap-2 rounded-xl border-2 border-slate-200 bg-white py-3.5 px-4 text-xs font-black text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all uppercase tracking-wider"

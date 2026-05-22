@@ -1,116 +1,116 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertCircle, FileText, MessageSquare, Stethoscope, ArrowLeft, HelpCircle, Activity } from 'lucide-react';
+import { AlertCircle, FileText, MessageSquare, Stethoscope, ArrowLeft, HelpCircle, Activity, Calendar } from 'lucide-react';
 import { usePet } from '../../context/PetContext';
 
 interface ScanResultsProps {
   logId: string;
   uploadedImage?: string;
+  prefetchedReport?: any;   // Real Gemini result passed directly from Diagnostic.tsx
   onClose: () => void;
 }
 
-export default function ScanResults({ logId, uploadedImage, onClose }: ScanResultsProps) {
+export default function ScanResults({ logId, uploadedImage, prefetchedReport, onClose }: ScanResultsProps) {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { activePet } = usePet();
 
   useEffect(() => {
-    const fetchReport = async () => {
-      // Determine authentic pet details
-      const resolvedName = activePet?.name || 'Your Saved Pet';
-      const resolvedBreed = activePet?.breed || 'Mixed Breed';
-      const resolvedAge = activePet?.age || 2;
+    const resolvedName = activePet?.name || 'Your Pet';
+    const resolvedBreed = activePet?.breed || 'Mixed Breed';
+    const resolvedAge = activePet?.age || 2;
 
-      const commitReport = (repObj: any) => {
-        setReport(repObj);
-        try {
-          const rec = {
-            id: repObj.id || `scan-${Date.now()}`,
-            risk_score: repObj.risk_score || 85,
-            triage_tier: repObj.triage_tier || 'URGENT',
-            ai_explanation: repObj.disease_name ? `${repObj.disease_name}: ${repObj.clinical_reasons || ''}` : repObj.ai_explanation || 'Suspected Dermatitis secondary complication',
-            created_at: new Date().toISOString()
-          };
-          const existing = localStorage.getItem('pawscheck_user_scans');
-          const arr = existing ? JSON.parse(existing) : [];
-          if (!arr.find((a: any) => a.id === rec.id)) {
-            localStorage.setItem('pawscheck_user_scans', JSON.stringify([rec, ...arr]));
-          }
-        } catch(e) {}
+    const commitReport = (repObj: any) => {
+      const enriched = {
+        ...repObj,
+        pets: { name: resolvedName, breed: resolvedBreed, age: resolvedAge },
+        image_urls: uploadedImage ? [uploadedImage] : repObj.image_urls || []
       };
-
-      // Direct local simulation payload load
-      if (logId.startsWith('local-log-')) {
-        setTimeout(() => {
-          commitReport({
-            id: logId,
-            risk_score: 85,
-            triage_tier: 'URGENT',
-            pets: { name: resolvedName, breed: resolvedBreed, age: resolvedAge },
-            disease_name: 'Acute Secondary Dermatitis (Otitis Externa complication)',
-            occurrence_rate: 'Common (Estimated 15-20% of canine clinical dermatological visits)',
-            clinical_reasons: 'Marked focal erythema accompanied by severe localized hyperkeratosis. Swelling metrics align with chronic mechanical irritation secondary to intense scratching cycles.',
-            probable_causes: ['Environmental aeroallergens (atopy)', 'Ectoparasite hypersensitivity (flea/mite saliva)', 'Secondary staphylococcal or Malassezia overgrowth'],
-            ai_explanation: 'Visual screening indicates marked erythematous inflammation consistent with acute secondary dermatitis. Lesion distribution strongly suggests hypersensitivity trigger requiring pharmacological intervention.',
-            detected_symptoms: ['Severe focal pruritus', 'Erythematous swelling', 'Localized alopecia', 'Head shaking / scratching'],
-            critical_level_factors: ['Lesions located near high-vascular soft tissue', 'Exudation signaling possible pyoderma onset'],
-            vet_action_required: 'Recommend cytology evaluation and targeted broad-spectrum antibiotic plus topical corticosteroid schedule.',
-            recommendation: 'Initiate broad-spectrum antimicrobial plan.',
-            image_urls: uploadedImage ? [uploadedImage] : ['https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=1000']
-          });
-          setLoading(false);
-        }, 600);
-        return;
-      }
-
+      setReport(enriched);
+      // Persist to user-scoped scan history
       try {
-        const response = await fetch(`/api/report/${logId}`);
-        if (!response.ok) throw new Error('Failed to fetch report');
-        const data = await response.json();
-        
-        // Enrich backend payload dynamically to ensure gorgeous visual presentation
-        commitReport({
-          ...data,
-          pets: {
-            name: activePet?.name || data.pets?.name || resolvedName,
-            breed: activePet?.breed || data.pets?.breed || resolvedBreed,
-            age: activePet?.age || data.pets?.age || resolvedAge
-          },
-          disease_name: data.analysis?.primary_condition || data.primary_condition || 'Acute Secondary Dermatitis',
-          occurrence_rate: 'High incidence observed during typical regional seasonal allergen spikes.',
-          clinical_reasons: data.ai_explanation || 'Inflammatory visual feedback correlates highly with immediate cutaneous reactivity.',
-          probable_causes: ['Underlying allergic dermatitis', 'Superficial bacterial complication', 'Contact irritant interaction'],
-          image_urls: uploadedImage ? [uploadedImage] : data.image_urls
-        });
-      } catch (error) {
-        console.warn("Backend report gateway timeout, falling back to local simulation data:", error);
-        commitReport({
-          id: logId,
-          risk_score: 85,
-          triage_tier: 'URGENT',
-          pets: { name: resolvedName, breed: resolvedBreed, age: resolvedAge },
-          disease_name: 'Acute Secondary Dermatitis (Otitis Externa complication)',
-          occurrence_rate: 'Common (Estimated 15-20% of canine clinical dermatological visits)',
-          clinical_reasons: 'Marked focal erythema accompanied by severe localized hyperkeratosis. Swelling metrics align with chronic mechanical irritation secondary to intense scratching cycles.',
-          probable_causes: ['Environmental aeroallergens (atopy)', 'Ectoparasite hypersensitivity (flea/mite saliva)', 'Secondary staphylococcal or Malassezia overgrowth'],
-          ai_explanation: 'Visual screening indicates marked erythematous inflammation consistent with acute secondary dermatitis. Lesion distribution strongly suggests hypersensitivity trigger requiring pharmacological intervention.',
-          detected_symptoms: ['Severe focal pruritus', 'Erythematous swelling', 'Localized alopecia', 'Head shaking / scratching'],
-          critical_level_factors: ['Lesions located near high-vascular soft tissue', 'Exudation signaling possible pyoderma onset'],
-          vet_action_required: 'Recommend cytology evaluation and targeted broad-spectrum antibiotic plus topical corticosteroid schedule.',
-          recommendation: 'Initiate broad-spectrum antimicrobial plan.',
-          image_urls: uploadedImage ? [uploadedImage] : ['https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=1000']
-        });
-      } finally {
-        setLoading(false);
-      }
+        const activeUser = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+        const rec = {
+          id: enriched.id || `scan-${Date.now()}`,
+          user_email: activeUser,
+          pet_id: activePet?.id || 'demo-pet',
+          risk_score: enriched.risk_score || 0,
+          triage_tier: enriched.triage_tier || 'MONITOR',
+          ai_explanation: enriched.disease_name
+            ? `${enriched.disease_name}: ${enriched.ai_explanation || ''}`
+            : enriched.ai_explanation || '',
+          created_at: new Date().toISOString()
+        };
+        const existing = localStorage.getItem('pawscheck_user_scans');
+        const arr = existing ? JSON.parse(existing) : [];
+        if (!arr.find((a: any) => a.id === rec.id)) {
+          localStorage.setItem('pawscheck_user_scans', JSON.stringify([rec, ...arr]));
+        }
+      } catch (e) {}
+      setLoading(false);
     };
-    if (logId) fetchReport();
-  }, [logId, activePet, uploadedImage]);
+
+    if (prefetchedReport) {
+      // Real Gemini result — use immediately, no delay
+      commitReport(prefetchedReport);
+    }
+  }, [logId, prefetchedReport, activePet, uploadedImage]);
+
+  const [bookingStatus, setBookingStatus] = useState<'idle' | 'success'>('idle');
+  const [bookingDate, setBookingDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [bookingTime, setBookingTime] = useState('10:00');
+
+  const handleBookAppointment = () => {
+    if (!report) return;
+    const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+    const userName = localStorage.getItem('pawscheck_user_name') || 'Pet Owner';
+    const userId = localStorage.getItem('pawscheck_user_id') || 'guest';
+
+    let selectedDateTime = new Date().toISOString();
+    try {
+      if (bookingDate && bookingTime) {
+        selectedDateTime = new Date(`${bookingDate}T${bookingTime}`).toISOString();
+      }
+    } catch (e) {
+      console.warn("Date parsing failed, using now", e);
+    }
+
+    const newAppointment = {
+      id: `app-scan-${Date.now()}`,
+      pet_id: activePet?.id || `pet-${Date.now()}`,
+      owner_id: userId,
+      owner_email: activeEmail,
+      vet_id: 'vet-active',
+      appointment_date: selectedDateTime,
+      duration_minutes: 30,
+      status: 'pending',
+      type: 'scheduled',
+      reason: `Post-Scan Consultation: ${report.disease_name}\n\n[📎 Attached Visual AI Diagnostic Report — Scan ID: PH-${logId.substring(0, 8).toUpperCase()}]`,
+      urgency_level: report.triage_tier?.toLowerCase() === 'emergency' ? 'emergency' : report.triage_tier?.toLowerCase() === 'urgent' ? 'urgent' : 'normal',
+      pet_name: report.pets?.name || 'My Pet',
+      owner_name: userName,
+      pet_breed: report.pets?.breed || 'Unknown'
+    };
+
+    try {
+      const existing = localStorage.getItem('pawscheck_custom_appointments');
+      const parsedArray = existing ? JSON.parse(existing) : [];
+      localStorage.setItem('pawscheck_custom_appointments', JSON.stringify([newAppointment, ...parsedArray]));
+      setBookingStatus('success');
+      setTimeout(() => setBookingStatus('idle'), 3000);
+    } catch(err) {
+      console.error(err);
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-200">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+
         <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Compiling Clinical Data...</p>
       </div>
     );
@@ -277,6 +277,35 @@ export default function ScanResults({ logId, uploadedImage, onClose }: ScanResul
             </section>
           )}
 
+          {/* Custom Date / Time selection */}
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/60 space-y-3 print:hidden mb-6 text-left">
+            <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <Calendar size={14} className="text-blue-600" />
+              Schedule Online Consultation
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Date</label>
+                <input 
+                  type="date"
+                  value={bookingDate}
+                  onChange={(e) => setBookingDate(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 bg-white text-sm font-bold text-slate-800 outline-none"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Time</label>
+                <input 
+                  type="time"
+                  value={bookingTime}
+                  onChange={(e) => setBookingTime(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 bg-white text-sm font-bold text-slate-800 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Action Buttons (Hidden in Print) */}
           <div className="pt-8 border-t border-slate-100 flex flex-col sm:flex-row gap-4 print:hidden">
             <button 
@@ -285,6 +314,24 @@ export default function ScanResults({ logId, uploadedImage, onClose }: ScanResul
             >
               <FileText size={18} />
               Download Clinical PDF
+            </button>
+            <button 
+              onClick={handleBookAppointment}
+              disabled={bookingStatus === 'success'}
+              className={`flex-1 font-black py-4 rounded-xl text-xs transition-all shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest ${
+                bookingStatus === 'success' 
+                  ? 'bg-green-500 text-white shadow-green-100' 
+                  : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-100'
+              }`}
+            >
+              {bookingStatus === 'success' ? (
+                <>✓ Request Sent</>
+              ) : (
+                <>
+                  <Calendar size={18} className="text-blue-400" />
+                  Book Professional Consultation
+                </>
+              )}
             </button>
             <button 
               onClick={onClose}

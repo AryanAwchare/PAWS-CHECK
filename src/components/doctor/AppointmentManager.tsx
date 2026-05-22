@@ -6,6 +6,29 @@ import {
 } from 'lucide-react';
 import { useDoctor } from '../../context/DoctorContext';
 
+const getGoogleCalendarUrl = (appointment: any) => {
+  const title = encodeURIComponent(`PawsCheck Appointment: ${appointment.pet_name || 'Pet'}`);
+  const reasonText = appointment.reason || 'General Vet Consultation';
+  const ownerText = appointment.owner_name ? `Owner: ${appointment.owner_name}` : '';
+  const details = encodeURIComponent(`${reasonText}\n\n${ownerText}\nScheduled via PawsCheck.`);
+  const location = encodeURIComponent('PawsCheck Veterinary Clinic');
+
+  const startDate = new Date(appointment.appointment_date);
+  const duration = appointment.duration_minutes || 30;
+  const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
+
+  const formatUTC = (d: Date) => {
+    try {
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    } catch (e) {
+      return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    }
+  };
+
+  const dates = `${formatUTC(startDate)}/${formatUTC(endDate)}`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}&sf=true&output=xml`;
+};
+
 type ViewMode = 'requests' | 'calendar' | 'all';
 
 interface TimeSlot {
@@ -20,14 +43,13 @@ interface TimeSlot {
 const HOURS = Array.from({ length: 10 }, (_, i) => i + 9); // 9 AM to 6 PM
 
 export default function AppointmentManager() {
-  const { appointments, pendingRequests } = useDoctor();
+  const { appointments, pendingRequests, updateAppointmentStatus } = useDoctor();
   const [viewMode, setViewMode] = useState<ViewMode>('requests');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [localAppointments, setLocalAppointments] = useState(appointments);
   
-  // Ensure background sync arrays feed immediately into local interface mapping views
   useEffect(() => {
     setLocalAppointments(appointments);
   }, [appointments]);
@@ -41,31 +63,11 @@ export default function AppointmentManager() {
   const allExceptPending = localAppointments.filter(a => a.status !== 'pending');
 
   const handleApprove = (id: string) => {
-    setLocalAppointments(prev =>
-      prev.map(a => a.id === id ? { ...a, status: 'approved' } : a)
-    );
-    try {
-      const stored = localStorage.getItem('pawscheck_custom_appointments');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const updated = parsed.map((a: any) => a.id === id ? { ...a, status: 'approved' } : a);
-        localStorage.setItem('pawscheck_custom_appointments', JSON.stringify(updated));
-      }
-    } catch(e) {}
+    updateAppointmentStatus(id, 'approved');
   };
 
   const handleReject = (id: string) => {
-    setLocalAppointments(prev =>
-      prev.map(a => a.id === id ? { ...a, status: 'rejected', rejection_reason: rejectReason } : a)
-    );
-    try {
-      const stored = localStorage.getItem('pawscheck_custom_appointments');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const updated = parsed.map((a: any) => a.id === id ? { ...a, status: 'rejected', rejection_reason: rejectReason } : a);
-        localStorage.setItem('pawscheck_custom_appointments', JSON.stringify(updated));
-      }
-    } catch(e) {}
+    updateAppointmentStatus(id, 'rejected', rejectReason);
     setRejectingId(null);
     setRejectReason('');
   };
@@ -318,6 +320,14 @@ export default function AppointmentManager() {
                         <div className="w-2 h-2 rounded-full bg-blue-400"></div>
                         <span className="text-xs font-bold">{bookedApt.pet_name}</span>
                         <span className="text-[10px] opacity-60">· {bookedApt.owner_name} · {bookedApt.duration_minutes}min</span>
+                        <a
+                          href={getGoogleCalendarUrl(bookedApt)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                        >
+                          📅 Sync
+                        </a>
                       </>
                     )}
                     {(slotStatus === 'blocked' || slotStatus === 'break') && blocked && (
@@ -352,6 +362,7 @@ export default function AppointmentManager() {
                   <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Type</th>
                   <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Reason</th>
                   <th className="text-center px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="text-center px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Calendar</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
@@ -379,6 +390,18 @@ export default function AppointmentManager() {
                       <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border ${getStatusBadge(apt.status)}`}>
                         {apt.status.toUpperCase()}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      {apt.status === 'approved' && (
+                        <a
+                          href={getGoogleCalendarUrl(apt)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-bold transition-colors"
+                        >
+                          📅 Add to GCal
+                        </a>
+                      )}
                     </td>
                   </tr>
                 ))}

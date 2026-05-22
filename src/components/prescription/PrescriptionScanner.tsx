@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Upload, FileText, Loader2, CheckCircle, AlertTriangle, Info, CalendarPlus, PlusCircle } from 'lucide-react';
 import { usePet } from '../../context/PetContext';
 import { createReminder } from '../../lib/supabaseServices';
+import { callGemini, fileToGeminiPart } from '../../lib/geminiClient';
 
 export default function PrescriptionScanner() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -63,38 +64,36 @@ export default function PrescriptionScanner() {
   };
 
   const handleAnalyze = async () => {
-    if (!preview) return;
+    if (!preview || !selectedFile) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/analyze-prescription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: preview,
-          mimeType: selectedFile?.type
-        })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to analyze');
-      setResult(data);
-      setLoading(false);
+      const prompt = `You are a veterinary pharmacist AI assistant. Analyze this prescription or medication label image.
+
+Respond ONLY with a valid JSON object — no markdown fences, no extra text. Schema:
+{
+  "medication_name": "full drug name",
+  "dosage": "dosage amount and form",
+  "frequency": "how often to administer",
+  "duration": "course length",
+  "instructions": "administration instructions",
+  "warnings": ["warning1", "warning2"],
+  "is_authentic": true,
+  "confidence_score": 0.95
+}
+
+If this is not a prescription or medication label, set medication_name to "Not a prescription" and confidence_score to 0.`;
+
+      const imagePart = fileToGeminiPart(preview, selectedFile.type || 'image/jpeg');
+      const raw = await callGemini([{ text: prompt }, imagePart]);
+      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      setResult(parsed);
     } catch (err: any) {
-      console.warn("Backend prescription proxy unavailable, launching local AI simulation engine:", err);
-      // Seamlessly supply premium structured Gemini extraction output to ensure evaluation is not blocked by missing API keys
-      setTimeout(() => {
-        setResult({
-          medication_name: "Amoxicillin / Clavulanate (Clavamox)",
-          dosage: "125 mg tablet",
-          frequency: "Twice daily (every 12 hours)",
-          duration: "7 days",
-          instructions: "Give with food to prevent gastrointestinal upset. Complete full course even if symptoms improve.",
-          warnings: ["May cause mild diarrhea or vomiting", "Do not give to pets with known penicillin allergy"],
-          is_authentic: true,
-          confidence_score: 0.98
-        });
-        setLoading(false);
-      }, 1200);
+      console.error('Gemini prescription error:', err);
+      setError(`AI analysis failed: ${err.message || 'Unknown error'}. Please try again.`);
+    } finally {
+      setLoading(false);
     }
   };
 

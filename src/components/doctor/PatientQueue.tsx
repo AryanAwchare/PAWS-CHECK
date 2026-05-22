@@ -1,63 +1,131 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Play, CheckCircle, SkipForward, Plus, AlertTriangle, User, Timer } from 'lucide-react';
 import { useDoctor } from '../../context/DoctorContext';
+
+const getGoogleCalendarUrl = (appointment: any) => {
+  const title = encodeURIComponent(`PawsCheck Appointment: ${appointment.pet_name || 'Pet'}`);
+  const reasonText = appointment.reason || 'General Vet Consultation';
+  const ownerText = appointment.owner_name ? `Owner: ${appointment.owner_name}` : '';
+  const details = encodeURIComponent(`${reasonText}\n\n${ownerText}\nScheduled via PawsCheck.`);
+  const location = encodeURIComponent('PawsCheck Veterinary Clinic');
+
+  const startDate = new Date(appointment.appointment_date || appointment.check_in_time);
+  const duration = appointment.duration_minutes || 30;
+  const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
+
+  const formatUTC = (d: Date) => {
+    try {
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    } catch (e) {
+      return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    }
+  };
+
+  const dates = `${formatUTC(startDate)}/${formatUTC(endDate)}`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}&sf=true&output=xml`;
+};
 
 interface PatientQueueProps {
   onStartConsultation: () => void;
 }
 
 export default function PatientQueue({ onStartConsultation }: PatientQueueProps) {
-  const { queue } = useDoctor();
+  const { queue, updateAppointmentStatus } = useDoctor();
   const [localQueue, setLocalQueue] = useState(queue);
   const [showAddWalkIn, setShowAddWalkIn] = useState(false);
   const [walkInForm, setWalkInForm] = useState({ petName: '', ownerName: '', reason: '', isEmergency: false });
+
+  // Synchronize localQueue when the doctor context polls changes from shared storage
+  useEffect(() => {
+    setLocalQueue(queue);
+  }, [queue]);
 
   const waitingCount = localQueue.filter(q => q.status === 'waiting').length;
   const inProgressItem = localQueue.find(q => q.status === 'in_consultation');
 
   const handleStatusChange = (id: string, newStatus: 'waiting' | 'in_consultation' | 'completed' | 'skipped') => {
-    setLocalQueue(prev => prev.map(q => {
-      if (q.id === id) {
-        return {
-          ...q,
-          status: newStatus,
-          start_time: newStatus === 'in_consultation' ? new Date().toISOString() : q.start_time,
-          end_time: (newStatus === 'completed' || newStatus === 'skipped') ? new Date().toISOString() : q.end_time,
-        };
-      }
-      return q;
-    }));
+    const item = localQueue.find(q => q.id === id);
+    if (item) {
+      const appStatusMap = {
+        waiting: 'approved',
+        in_consultation: 'in_progress',
+        completed: 'completed',
+        skipped: 'skipped'
+      };
+      const nextStatus = appStatusMap[newStatus];
+      updateAppointmentStatus(item.appointment_id, nextStatus);
+    } else {
+      setLocalQueue(prev => prev.map(q => {
+        if (q.id === id) {
+          return {
+            ...q,
+            status: newStatus,
+            start_time: newStatus === 'in_consultation' ? new Date().toISOString() : q.start_time,
+            end_time: (newStatus === 'completed' || newStatus === 'skipped') ? new Date().toISOString() : q.end_time,
+          };
+        }
+        return q;
+      }));
+    }
+    
     if (newStatus === 'in_consultation') {
       onStartConsultation();
     }
   };
 
   const addWalkIn = () => {
-    const newItem = {
-      id: `wq-${Date.now()}`,
-      appointment_id: `wa-${Date.now()}`,
-      pet_id: `wp-${Date.now()}`,
-      owner_id: `wo-${Date.now()}`,
-      queue_position: localQueue.length + 1,
-      status: walkInForm.isEmergency ? 'waiting' as const : 'waiting' as const,
-      check_in_time: new Date().toISOString(),
-      estimated_wait_minutes: waitingCount * 15,
-      is_walk_in: true,
-      is_emergency: walkInForm.isEmergency,
+    const newAppId = `app-walk-${Date.now()}`;
+    const newAppointment = {
+      id: newAppId,
+      pet_id: `pet-walk-${Date.now()}`,
+      owner_id: `owner-walk-${Date.now()}`,
+      owner_email: 'walkin@clinic.local',
+      vet_id: 'vet-active',
+      appointment_date: new Date().toISOString(),
+      duration_minutes: 30,
+      status: 'approved', // Approved to render immediately in queue
+      type: 'walk_in',
+      reason: walkInForm.reason || 'General Checkup',
+      urgency_level: walkInForm.isEmergency ? 'emergency' : 'normal',
       pet_name: walkInForm.petName,
-      pet_breed: 'Unknown',
-      pet_species: 'Dog',
       owner_name: walkInForm.ownerName,
-      reason: walkInForm.reason,
+      pet_breed: 'Mixed Breed'
     };
 
-    if (walkInForm.isEmergency) {
-      // Emergency goes to front of queue
-      setLocalQueue(prev => [newItem, ...prev.map(q => ({ ...q, queue_position: q.queue_position + 1 }))]);
-    } else {
-      setLocalQueue(prev => [...prev, newItem]);
+    try {
+      const existing = localStorage.getItem('pawscheck_custom_appointments');
+      const parsedArray = existing ? JSON.parse(existing) : [];
+      localStorage.setItem('pawscheck_custom_appointments', JSON.stringify([newAppointment, ...parsedArray]));
+      
+      const newItem = {
+        id: `q-${newAppId}`,
+        appointment_id: newAppId,
+        pet_id: newAppointment.pet_id,
+        owner_id: newAppointment.owner_id,
+        owner_email: newAppointment.owner_email,
+        queue_position: localQueue.length + 1,
+        status: 'waiting' as const,
+        check_in_time: newAppointment.appointment_date,
+        estimated_wait_minutes: waitingCount * 15,
+        is_walk_in: true,
+        is_emergency: walkInForm.isEmergency,
+        pet_name: walkInForm.petName,
+        pet_breed: 'Mixed Breed',
+        pet_species: 'Dog',
+        owner_name: walkInForm.ownerName,
+        reason: walkInForm.reason || 'General Checkup',
+      };
+
+      if (walkInForm.isEmergency) {
+        setLocalQueue(prev => [newItem, ...prev.map(q => ({ ...q, queue_position: q.queue_position + 1 }))]);
+      } else {
+        setLocalQueue(prev => [...prev, newItem]);
+      }
+    } catch(err) {
+      console.error(err);
     }
+
     setWalkInForm({ petName: '', ownerName: '', reason: '', isEmergency: false });
     setShowAddWalkIn(false);
   };
@@ -229,6 +297,16 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
                   >
                     <SkipForward size={12} /> Skip
                   </button>
+                )}
+                {(item.status === 'waiting' || item.status === 'in_consultation') && (
+                  <a
+                    href={getGoogleCalendarUrl(item)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-bold transition-colors text-center"
+                  >
+                    📅 Sync Cal
+                  </a>
                 )}
               </div>
             </div>

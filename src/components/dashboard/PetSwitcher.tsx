@@ -47,6 +47,7 @@ export default function PetSwitcher() {
 
     const generatedPet = {
       id: mockUuid,
+      owner_id: userId,
       name: newPet.name.trim(),
       species: newPet.species,
       breed: newPet.breed.trim() || 'Mixed Breed',
