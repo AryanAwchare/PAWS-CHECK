@@ -4,6 +4,16 @@ import { User, Mail, Key, Shield, Plus, FileText, Activity, X, Loader2, Calendar
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function Profile() {
   const { pets, refreshPets, userId, isGuest, setActivePetId } = usePet();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -73,6 +83,24 @@ export default function Profile() {
         let localArr = localSaved ? JSON.parse(localSaved) : [];
         localArr.push(generatedPet);
         localStorage.setItem('pawscheck_local_pets', JSON.stringify(localArr));
+
+        if (generatedPet.weight) {
+          try {
+            const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+            const initialLog = {
+              id: `weight-log-init-${Date.now()}`,
+              pet_id: generatedPet.id,
+              pet_name: generatedPet.name,
+              owner_id: userId,
+              owner_email: activeEmail,
+              weight: String(generatedPet.weight),
+              date: new Date().toISOString().split('T')[0]
+            };
+            const existingLogs = localStorage.getItem('pawscheck_weight_logs');
+            const parsedLogs = existingLogs ? JSON.parse(existingLogs) : [];
+            localStorage.setItem('pawscheck_weight_logs', JSON.stringify([initialLog, ...parsedLogs]));
+          } catch (e) {}
+        }
         
         await refreshPets();
         setActivePetId(generatedPet.id);
@@ -94,6 +122,24 @@ export default function Profile() {
         }]);
 
       if (error) throw new Error(error.message);
+
+      if (generatedPet.weight) {
+        try {
+          const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+          const initialLog = {
+            id: `weight-log-init-${Date.now()}`,
+            pet_id: generatedPet.id,
+            pet_name: generatedPet.name,
+            owner_id: userId,
+            owner_email: activeEmail,
+            weight: String(generatedPet.weight),
+            date: new Date().toISOString().split('T')[0]
+          };
+          const existingLogs = localStorage.getItem('pawscheck_weight_logs');
+          const parsedLogs = existingLogs ? JSON.parse(existingLogs) : [];
+          localStorage.setItem('pawscheck_weight_logs', JSON.stringify([initialLog, ...parsedLogs]));
+        } catch (e) {}
+      }
       
       await refreshPets();
       setNewPet({ name: '', species: 'Dog', breed: '', age: '', weight: '', previous_medications: '' });
@@ -104,6 +150,24 @@ export default function Profile() {
       let localArr = localSaved ? JSON.parse(localSaved) : [];
       localArr.push(generatedPet);
       localStorage.setItem('pawscheck_local_pets', JSON.stringify(localArr));
+
+      if (generatedPet.weight) {
+        try {
+          const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+          const initialLog = {
+            id: `weight-log-init-${Date.now()}`,
+            pet_id: generatedPet.id,
+            pet_name: generatedPet.name,
+            owner_id: userId,
+            owner_email: activeEmail,
+            weight: String(generatedPet.weight),
+            date: new Date().toISOString().split('T')[0]
+          };
+          const existingLogs = localStorage.getItem('pawscheck_weight_logs');
+          const parsedLogs = existingLogs ? JSON.parse(existingLogs) : [];
+          localStorage.setItem('pawscheck_weight_logs', JSON.stringify([initialLog, ...parsedLogs]));
+        } catch (e) {}
+      }
       
       await refreshPets();
       setActivePetId(generatedPet.id);
@@ -167,11 +231,9 @@ export default function Profile() {
               ) : (
                 pets.map((pet) => (
                   <div key={pet.id} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-2xl hover:border-slate-200 transition-all">
-                    <img
-                      src={pet.profile_picture_url || `https://ui-avatars.com/api/?name=${pet.name}&background=e2e8f0&color=475569`}
-                      alt={pet.name}
-                      className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                    />
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0">
+                      {getSpeciesEmoji(pet.species)}
+                    </div>
                     <div>
                       <p className="text-sm font-black text-slate-800">{pet.name}</p>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">

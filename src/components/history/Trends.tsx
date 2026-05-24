@@ -74,7 +74,7 @@ export default function Trends() {
     }
     setTriageHistory(triageTimeline);
 
-    // 2. Weight History from activePet weight and pawscheck_custom_appointments
+    // 2. Weight History from activePet weight, pawscheck_custom_appointments, and pawscheck_weight_logs
     const currentWeight = parseWeight(activePet?.weight || 15);
     
     let appointmentWeights: any[] = [];
@@ -98,13 +98,45 @@ export default function Trends() {
       }
     } catch (e) {}
 
-    appointmentWeights.sort((a, b) => a.timestamp - b.timestamp);
+    let customWeightLogs: any[] = [];
+    try {
+      const storedLogs = localStorage.getItem('pawscheck_weight_logs');
+      if (storedLogs) {
+        const allLogs = JSON.parse(storedLogs);
+        if (Array.isArray(allLogs) && activePet) {
+          customWeightLogs = allLogs
+            .filter((log: any) => 
+              (log.pet_id === activePet.id || log.pet_name?.toLowerCase() === activePet.name?.toLowerCase()) &&
+              log.weight
+            )
+            .map((log: any) => ({
+              date: new Date(log.date || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              timestamp: new Date(log.date || Date.now()).getTime(),
+              weight: parseWeight(log.weight)
+            }));
+        }
+      }
+    } catch (e) {}
+
+    // Combine and sort all weights
+    const combinedWeights = [...appointmentWeights, ...customWeightLogs];
+    combinedWeights.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Deduplicate by date string to keep chart clean
+    const seenDates = new Set();
+    const uniqueWeights: any[] = [];
+    for (const w of combinedWeights) {
+      if (!seenDates.has(w.date)) {
+        seenDates.add(w.date);
+        uniqueWeights.push(w);
+      }
+    }
 
     let weightTimeline: any[] = [];
-    if (appointmentWeights.length > 0) {
-      weightTimeline = [...appointmentWeights];
-      const lastAptWeight = appointmentWeights[appointmentWeights.length - 1].weight;
-      if (Math.abs(lastAptWeight - currentWeight) > 0.01) {
+    if (uniqueWeights.length > 0) {
+      weightTimeline = [...uniqueWeights];
+      const lastWeight = uniqueWeights[uniqueWeights.length - 1].weight;
+      if (Math.abs(lastWeight - currentWeight) > 0.01 && !seenDates.has('Today')) {
         weightTimeline.push({
           date: 'Today',
           timestamp: Date.now(),
@@ -113,8 +145,8 @@ export default function Trends() {
       }
     }
 
-    if (weightTimeline.length < 3) {
-      // Generate 5 points ending with current weight
+    // If no real inputs are recorded yet, generate fallback points so the line chart isn't empty
+    if (weightTimeline.length === 0) {
       const generated: any[] = [];
       const baseWeight = currentWeight;
       const deviations = [-1.2, -0.6, -0.1, 0.3, 0];
@@ -128,6 +160,17 @@ export default function Trends() {
         });
       }
       weightTimeline = generated;
+    } else if (weightTimeline.length === 1) {
+      // Prepend a starting reference point 7 days ago so a proper line chart can render
+      const singlePoint = weightTimeline[0];
+      weightTimeline = [
+        {
+          date: getPastDateStr(7),
+          timestamp: singlePoint.timestamp - (7 * 86400000),
+          weight: parseFloat((singlePoint.weight * 0.98).toFixed(1))
+        },
+        singlePoint
+      ];
     }
     setWeightHistory(weightTimeline);
 

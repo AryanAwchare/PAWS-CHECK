@@ -26,6 +26,16 @@ const getGoogleCalendarUrl = (appointment: any) => {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}&sf=true&output=xml`;
 };
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 interface PatientQueueProps {
   onStartConsultation: () => void;
 }
@@ -34,7 +44,7 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
   const { queue, updateAppointmentStatus } = useDoctor();
   const [localQueue, setLocalQueue] = useState(queue);
   const [showAddWalkIn, setShowAddWalkIn] = useState(false);
-  const [walkInForm, setWalkInForm] = useState({ petName: '', ownerName: '', reason: '', isEmergency: false });
+  const [walkInForm, setWalkInForm] = useState({ petName: '', ownerName: '', reason: '', isEmergency: false, species: 'Dog' });
 
   // Synchronize localQueue when the doctor context polls changes from shared storage
   useEffect(() => {
@@ -90,7 +100,8 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
       urgency_level: walkInForm.isEmergency ? 'emergency' : 'normal',
       pet_name: walkInForm.petName,
       owner_name: walkInForm.ownerName,
-      pet_breed: 'Mixed Breed'
+      pet_breed: 'Mixed Breed',
+      pet_species: walkInForm.species
     };
 
     try {
@@ -112,7 +123,7 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
         is_emergency: walkInForm.isEmergency,
         pet_name: walkInForm.petName,
         pet_breed: 'Mixed Breed',
-        pet_species: 'Dog',
+        pet_species: walkInForm.species,
         owner_name: walkInForm.ownerName,
         reason: walkInForm.reason || 'General Checkup',
       };
@@ -126,7 +137,7 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
       console.error(err);
     }
 
-    setWalkInForm({ petName: '', ownerName: '', reason: '', isEmergency: false });
+    setWalkInForm({ petName: '', ownerName: '', reason: '', isEmergency: false, species: 'Dog' });
     setShowAddWalkIn(false);
   };
 
@@ -187,11 +198,23 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
                 onChange={e => setWalkInForm(p => ({ ...p, ownerName: e.target.value }))}
                 className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50"
               />
+              <select
+                value={walkInForm.species}
+                onChange={e => setWalkInForm(p => ({ ...p, species: e.target.value }))}
+                className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-emerald-500/50"
+              >
+                <option value="Dog">🐕 Dog</option>
+                <option value="Cat">🐈 Cat</option>
+                <option value="Bird">🐦 Bird</option>
+                <option value="Rabbit">🐇 Rabbit</option>
+                <option value="Fish">🐠 Fish</option>
+                <option value="Other">🐾 Other</option>
+              </select>
               <input
                 placeholder="Reason for visit"
                 value={walkInForm.reason}
                 onChange={e => setWalkInForm(p => ({ ...p, reason: e.target.value }))}
-                className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 sm:col-span-2"
+                className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div className="flex items-center justify-between mt-4">
@@ -248,6 +271,7 @@ export default function PatientQueue({ onStartConsultation }: PatientQueueProps)
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xl shrink-0">{getSpeciesEmoji(item.pet_species)}</span>
                   <p className="text-base font-bold text-white">{item.pet_name}</p>
                   {item.is_walk_in && <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded-full">WALK-IN</span>}
                   {item.is_emergency && <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-bold rounded-full animate-pulse">🚨 EMERGENCY</span>}

@@ -50,17 +50,13 @@ export default function Inbox() {
         }
 
         let list: Prescription[] = [];
-        if (stored) {
+        if (stored && activeEmail) {
           const all: Prescription[] = JSON.parse(stored);
-          if (activeEmail) {
-            list = all.filter(rx => rx.ownerEmail?.toLowerCase() === activeEmail.toLowerCase());
-          } else {
-            list = all;
-          }
+          list = all.filter(rx => rx.ownerEmail?.toLowerCase() === activeEmail.toLowerCase());
         }
 
         // Add some default demo prescriptions if it is a demo or empty user
-        if (list.length === 0 && (!activeEmail || activeEmail.includes('demo') || activeEmail === 'priya@example.com')) {
+        if (list.length === 0 && activeEmail && (activeEmail.includes('demo') || activeEmail === 'priya@example.com')) {
           list = [
             {
               id: 'rx-demo-1',
@@ -223,7 +219,7 @@ export default function Inbox() {
             placeholder="Search by pet or vet..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs font-medium bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-blue-500/50"
+            className="w-full pl-9 pr-4 py-2 text-xs font-bold bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-blue-500/50 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
           />
         </div>
       </div>
@@ -233,9 +229,9 @@ export default function Inbox() {
         <div className="lg:col-span-1 space-y-3">
           {filteredRx.length === 0 ? (
             <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center">
-              <MailOpen size={36} className="mx-auto text-slate-400 mb-2 opacity-50" />
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">No prescriptions found</p>
-              <p className="text-[10px] text-slate-400 mt-1">Prescriptions saved by veterinarians will appear here.</p>
+              <MailOpen size={36} className="mx-auto text-slate-500 dark:text-slate-400 mb-2 opacity-50" />
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No prescriptions found</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-medium">Prescriptions saved by veterinarians will appear here.</p>
             </div>
           ) : (
             filteredRx.map(rx => {
@@ -259,7 +255,7 @@ export default function Inbox() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                        isRead ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-blue-500/10 text-blue-500'
+                        isRead ? 'bg-slate-100 dark:bg-slate-800 text-slate-500' : 'bg-blue-500/10 text-blue-500'
                       }`}>
                         {isRead ? <MailOpen size={16} /> : <Mail size={16} />}
                       </div>
@@ -270,19 +266,19 @@ export default function Inbox() {
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 block"></span>
                           )}
                         </h4>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 font-bold">
                           {rx.clinicName}
                         </p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400">
+                    <span className="text-[9px] font-extrabold text-slate-500 dark:text-slate-400">
                       {rx.createdAt}
                     </span>
                   </div>
                   
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {rx.medications.slice(0, 2).map((m, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md text-[9px] font-bold">
+                      <span key={idx} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md text-[9px] font-bold">
                         💊 {m.medicationName}
                       </span>
                     ))}
@@ -331,22 +327,22 @@ export default function Inbox() {
               </div>
 
               {/* Patient Meta Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-100/80 dark:bg-slate-900/50 p-4 rounded-xl">
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold block uppercase">Pet Name</label>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{selectedRx.petName}</span>
+                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold block uppercase">Pet Name</label>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{selectedRx.petName}</span>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold block uppercase">Breed</label>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{selectedRx.petBreed || 'Unknown'}</span>
+                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold block uppercase">Breed</label>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{selectedRx.petBreed || 'Unknown'}</span>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold block uppercase">Date Issued</label>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{selectedRx.createdAt}</span>
+                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold block uppercase">Date Issued</label>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{selectedRx.createdAt}</span>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold block uppercase">Status</label>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-emerald-500/10 text-emerald-500 dark:text-emerald-400">
+                  <label className="text-[10px] text-slate-600 dark:text-slate-400 font-bold block uppercase">Status</label>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                     Active Regimen
                   </span>
                 </div>
@@ -362,22 +358,22 @@ export default function Inbox() {
                   {selectedRx.medications.map((med, idx) => (
                     <div
                       key={med.id}
-                      className="border border-slate-100 dark:border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-lg bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                          <span className="w-5 h-5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold">
                             {idx + 1}
                           </span>
                           <span className="text-sm font-black text-slate-800 dark:text-white">
                             {med.medicationName}
                           </span>
-                          <span className="text-xs font-semibold text-slate-400">
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                             {med.dosage}
                           </span>
                         </div>
                         
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-bold">
                           {med.frequency} · {med.duration} · {med.route}
                         </p>
                         
@@ -388,7 +384,7 @@ export default function Inbox() {
                         )}
                       </div>
                       
-                      <div className="flex items-center gap-1.5 text-xs text-emerald-500 dark:text-emerald-400 bg-emerald-500/5 dark:bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/10 font-bold self-start md:self-center">
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 font-bold self-start md:self-center">
                         <Clock size={12} /> Reminder Set: {med.reminderTime}
                       </div>
                     </div>
@@ -397,20 +393,20 @@ export default function Inbox() {
               </div>
 
               {/* Vet Clinical Notes */}
-              <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-5">
+              <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-5">
                 <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
                   Veterinary Care Guidance
                 </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-blue-500/5 dark:bg-blue-500/10 border border-blue-500/10 p-4 rounded-xl font-medium">
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-blue-500/10 dark:bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl font-medium">
                   {selectedRx.notes || 'No special clinician guidance notes recorded.'}
                 </p>
               </div>
             </motion.div>
           ) : (
             <div className="h-full min-h-[300px] bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center p-6 text-center opacity-70">
-              <MailOpen size={48} className="text-slate-400 mb-3" />
-              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Select a Prescription</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+              <MailOpen size={48} className="text-slate-500 dark:text-slate-400 mb-3" />
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Select a Prescription</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-sm font-medium">
                 Click on any message in the inbox to view full veterinary details, schedules, and clinical guidance notes.
               </p>
             </div>

@@ -46,8 +46,18 @@ const DEMO_PATIENT = {
   },
 };
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function ConsultationWorkspace() {
-  const { appointments } = useDoctor();
+  const { appointments, updateAppointmentStatus } = useDoctor();
   const [selectedPatientId, setSelectedPatientId] = useState<string>('default');
 
   const activeCustomApt = appointments.find(a => a.id === selectedPatientId);
@@ -122,6 +132,7 @@ export default function ConsultationWorkspace() {
       const record = {
         id: `consult-${Date.now()}`,
         pet_name: pet.name,
+        owner_email: activeCustomApt?.owner_email || 'priya@example.com',
         date: new Date().toLocaleDateString(),
         summary: formData.plan || formData.assessment || 'Routine clinical summary checkup completed.',
         status: 'Completed'
@@ -139,6 +150,7 @@ export default function ConsultationWorkspace() {
       const record = {
         id: `consult-${Date.now()}`,
         pet_name: pet.name,
+        owner_email: activeCustomApt?.owner_email || 'priya@example.com',
         date: new Date().toLocaleDateString(),
         summary: `SOAP Clinical Summary & Guidance:\nAssessment: ${formData.assessment}\nPrescribed Plan: ${formData.plan}`,
         status: 'Completed'
@@ -146,6 +158,11 @@ export default function ConsultationWorkspace() {
       const existing = localStorage.getItem('pawscheck_completed_consultations');
       const arr = existing ? JSON.parse(existing) : [];
       localStorage.setItem('pawscheck_completed_consultations', JSON.stringify([record, ...arr]));
+
+      // Update appointment status to completed so both customer and doctor portal status updates
+      if (selectedPatientId !== 'default') {
+        updateAppointmentStatus(selectedPatientId, 'completed');
+      }
     } catch(e){}
     setTimeout(() => setTransmitted(false), 2500);
   };
@@ -188,7 +205,7 @@ export default function ConsultationWorkspace() {
           <option value="default">⭐ Default Case: Bruno (Golden Retriever) — Allergic Dermatitis</option>
           {appointments.map(apt => (
             <option key={apt.id} value={apt.id}>
-              🐾 {apt.pet_name} ({apt.owner_name}) — {apt.urgency_level.toUpperCase()}: {apt.reason.substring(0, 45)}...
+              {getSpeciesEmoji(apt.pet_species)} {apt.pet_name} ({apt.owner_name}) — {apt.urgency_level.toUpperCase()}: {apt.reason.substring(0, 45)}...
             </option>
           ))}
         </select>
@@ -200,8 +217,8 @@ export default function ConsultationWorkspace() {
         {/* Patient Card */}
         <div className="bg-slate-900 rounded-2xl border border-slate-800 p-4">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white">
-              <PawPrint size={24} />
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
+              {getSpeciesEmoji(pet.species)}
             </div>
             <div>
               <h3 className="text-base font-bold text-white">{pet.name}</h3>

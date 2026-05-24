@@ -9,6 +9,16 @@ interface DoctorDashboardProps {
   onNavigate: (tab: string) => void;
 }
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function DoctorDashboard({ onNavigate }: DoctorDashboardProps) {
   const { stats, pendingRequests, queue, appointments, vetProfile, updateAppointmentStatus } = useDoctor();
 
@@ -103,11 +113,9 @@ export default function DoctorDashboard({ onNavigate }: DoctorDashboardProps) {
                 <div key={req.id} className="p-4 hover:bg-slate-800/30 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(req.pet_name || 'Pet')}&background=${req.urgency_level === 'emergency' ? 'ef4444' : '6366f1'}&color=ffffff&bold=true&size=36`}
-                        className="w-9 h-9 rounded-full"
-                        alt={req.pet_name}
-                      />
+                      <div className="w-9 h-9 rounded-full bg-slate-850 border border-slate-800 flex items-center justify-center text-xl shrink-0">
+                        {getSpeciesEmoji(req.pet_species)}
+                      </div>
                       <div>
                         <p className="text-sm font-bold text-white">{req.pet_name} <span className="text-slate-500 font-normal">· {req.pet_breed}</span></p>
                         <p className="text-xs text-slate-500">Owner: {req.owner_name}</p>
@@ -170,6 +178,9 @@ export default function DoctorDashboard({ onNavigate }: DoctorDashboardProps) {
                     : 'bg-slate-800 text-slate-400'
                 }`}>
                   {item.status === 'in_consultation' ? '▶' : `#${item.queue_position}`}
+                </div>
+                <div className="flex items-center gap-2 text-xl shrink-0">
+                  {getSpeciesEmoji(item.pet_species)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-white truncate">

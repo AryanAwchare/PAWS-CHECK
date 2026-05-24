@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Search, Filter, Eye, FileText, Pill, ChevronRight, PawPrint } from 'lucide-react';
+import { useDoctor } from '../../context/DoctorContext';
 
 interface Patient {
   id: string;
@@ -35,12 +36,88 @@ const tierColors: Record<string, string> = {
   EMERGENCY: 'bg-red-500/10 text-red-400 border-red-500/20',
 };
 
+const getSpeciesEmoji = (species: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function PatientRegistry() {
+  const { appointments } = useDoctor();
   const [search, setSearch] = useState('');
   const [filterTier, setFilterTier] = useState<string>('all');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  const filtered = DEMO_PATIENTS.filter(p => {
+  // Dynamic Patient List Map
+  const appointmentPatientsMap: Record<string, Patient> = {};
+  appointments.forEach(apt => {
+    if (!apt.pet_id || !apt.pet_name) return;
+    
+    const petKey = apt.pet_id;
+    const dateStr = apt.appointment_date ? new Date(apt.appointment_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    
+    let triageTier = 'HEALTHY';
+    if (apt.urgency_level === 'emergency') triageTier = 'EMERGENCY';
+    else if (apt.urgency_level === 'urgent') triageTier = 'URGENT';
+    else if (apt.urgency_level === 'normal') triageTier = 'MONITOR';
+
+    if (appointmentPatientsMap[petKey]) {
+      appointmentPatientsMap[petKey].total_visits += 1;
+      if (new Date(dateStr) > new Date(appointmentPatientsMap[petKey].last_visit)) {
+        appointmentPatientsMap[petKey].last_visit = dateStr;
+        appointmentPatientsMap[petKey].last_triage_tier = triageTier;
+      }
+      if (apt.reason && !appointmentPatientsMap[petKey].conditions.includes(apt.reason)) {
+        appointmentPatientsMap[petKey].conditions.push(apt.reason);
+      }
+    } else {
+      appointmentPatientsMap[petKey] = {
+        id: apt.pet_id,
+        pet_name: apt.pet_name,
+        pet_breed: apt.pet_breed || 'Mixed Breed',
+        pet_species: apt.pet_species || 'Dog',
+        pet_age: apt.pet_age || 2,
+        owner_name: apt.owner_name || 'Pet Owner',
+        owner_phone: apt.owner_email || 'No Phone',
+        last_visit: dateStr,
+        total_visits: 1,
+        active_prescriptions: (apt.status === 'approved' || apt.status === 'in_progress') ? 1 : 0,
+        last_triage_tier: triageTier,
+        conditions: apt.reason ? [apt.reason] : ['Routine consultation']
+      };
+    }
+  });
+
+  const dynamicPatientsList = Object.values(appointmentPatientsMap);
+  
+  // Merge static DEMO_PATIENTS without duplicates
+  const allPatients = [...DEMO_PATIENTS];
+  dynamicPatientsList.forEach(dp => {
+    const existsIdx = allPatients.findIndex(p => 
+      p.id === dp.id || 
+      (p.pet_name.toLowerCase() === dp.pet_name.toLowerCase() && p.owner_name.toLowerCase() === dp.owner_name.toLowerCase())
+    );
+    if (existsIdx >= 0) {
+      allPatients[existsIdx].total_visits = Math.max(allPatients[existsIdx].total_visits, dp.total_visits);
+      if (new Date(dp.last_visit) > new Date(allPatients[existsIdx].last_visit)) {
+        allPatients[existsIdx].last_visit = dp.last_visit;
+        allPatients[existsIdx].last_triage_tier = dp.last_triage_tier;
+      }
+      dp.conditions.forEach(cond => {
+        if (!allPatients[existsIdx].conditions.includes(cond)) {
+          allPatients[existsIdx].conditions.push(cond);
+        }
+      });
+    } else {
+      allPatients.push(dp);
+    }
+  });
+
+  const filtered = allPatients.filter(p => {
     const matchesSearch = p.pet_name.toLowerCase().includes(search.toLowerCase()) ||
       p.owner_name.toLowerCase().includes(search.toLowerCase()) ||
       p.pet_breed.toLowerCase().includes(search.toLowerCase());
@@ -53,7 +130,7 @@ export default function PatientRegistry() {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-xl font-black text-white">Patient Registry</h2>
-          <p className="text-sm text-slate-500">{DEMO_PATIENTS.length} patients registered</p>
+          <p className="text-sm text-slate-500">{allPatients.length} patients registered</p>
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -108,8 +185,8 @@ export default function PatientRegistry() {
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-slate-400">
-                        <PawPrint size={16} />
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-base">
+                        {getSpeciesEmoji(patient.pet_species)}
                       </div>
                       <div>
                         <p className="text-sm font-bold text-white">{patient.pet_name}</p>

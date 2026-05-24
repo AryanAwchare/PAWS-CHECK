@@ -12,6 +12,8 @@ CREATE TABLE pets (
   vaccination_records JSONB DEFAULT '[]',
   medications JSONB DEFAULT '[]',
   microchip_number TEXT,
+  weight TEXT,
+  previous_medications TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -64,4 +66,14 @@ CREATE TABLE reminders (
   priority TEXT DEFAULT 'normal',
   completed BOOLEAN DEFAULT false,
   createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. Table for historical weight tracking
+CREATE TABLE IF NOT EXISTS weight_logs (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  weight TEXT NOT NULL,
+  date DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -6,6 +6,16 @@ interface DashboardProps {
   onNavigateScan?: () => void;
 }
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function Dashboard({ onNavigateScan }: DashboardProps = {}) {
   const [recentRecords, setRecentRecords] = useState<any[]>([]);
   const [stats, setStats] = useState({
@@ -72,22 +82,36 @@ export default function Dashboard({ onNavigateScan }: DashboardProps = {}) {
     fetchRecords();
   }, []);
 
-  // Poll for appointment status updates — filtered to only this user's email
+  // Poll for appointment status updates — filtered strictly to only this user's email
   useEffect(() => {
     const poll = () => {
       try {
         const activeEmail = localStorage.getItem('pawscheck_user_email');
-        const stored = localStorage.getItem('pawscheck_custom_appointments');
-        if (stored && activeEmail) {
-          const all = JSON.parse(stored);
-          setMyAppointments(all.filter((a: any) => a.owner_email === activeEmail));
+        if (!activeEmail) {
+          setMyAppointments([]);
+          setCompletedReports([]);
+          return;
         }
+
+        const stored = localStorage.getItem('pawscheck_custom_appointments');
+        if (stored) {
+          const all = JSON.parse(stored);
+          setMyAppointments(all.filter((a: any) => a.owner_email?.toLowerCase() === activeEmail.toLowerCase()));
+        } else {
+          setMyAppointments([]);
+        }
+
         const rep = localStorage.getItem('pawscheck_completed_consultations');
         if (rep) {
           const allReps = JSON.parse(rep);
-          setCompletedReports(activeEmail ? allReps.filter((r: any) => r.owner_email === activeEmail) : allReps);
+          setCompletedReports(allReps.filter((r: any) => r.owner_email?.toLowerCase() === activeEmail.toLowerCase()));
+        } else {
+          setCompletedReports([]);
         }
-      } catch(e) {}
+      } catch(e) {
+        setMyAppointments([]);
+        setCompletedReports([]);
+      }
     };
     poll();
     const interval = setInterval(poll, 1500);
@@ -205,16 +229,25 @@ export default function Dashboard({ onNavigateScan }: DashboardProps = {}) {
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {myAppointments.map((apt: any) => (
                 <div key={apt.id} className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-white truncate">{apt.pet_name} · <span className="text-slate-400 font-normal">{apt.reason}</span></p>
-                    {apt.rejection_reason && <p className="text-[10px] text-red-400 font-bold mt-1 bg-red-500/10 p-1 rounded">Note: {apt.rejection_reason}</p>}
+                  <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                    <span className="text-sm shrink-0">{getSpeciesEmoji(apt.pet_species)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-white truncate">{apt.pet_name} · <span className="text-slate-400 font-normal">{apt.reason}</span></p>
+                      {apt.rejection_reason && <p className="text-[10px] text-red-400 font-bold mt-1 bg-red-500/10 p-1 rounded">Note: {apt.rejection_reason}</p>}
+                      {apt.assigned_vet_name && (
+                        <div className="mt-1.5 flex items-center gap-1 text-[9px] text-blue-400 font-bold bg-blue-500/10 px-1.5 py-0.5 rounded w-fit uppercase tracking-wider border border-blue-500/10">
+                          <Stethoscope size={9} />
+                          {apt.assigned_vet_name}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <span className={`shrink-0 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
-                    apt.status === 'approved' ? 'bg-green-500/10 text-green-400 border-green-500/30' :
+                    (apt.status === 'approved' || apt.status === 'in_progress' || apt.status === 'completed') ? 'bg-green-500/10 text-green-400 border-green-500/30' :
                     apt.status === 'rejected' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
                     'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
                   }`}>
-                    {apt.status === 'approved' ? 'Accepted' : apt.status === 'rejected' ? 'Declined' : 'Pending'}
+                    {(apt.status === 'approved' || apt.status === 'in_progress' || apt.status === 'completed') ? 'Accepted' : apt.status === 'rejected' ? 'Declined' : 'Pending'}
                   </span>
                 </div>
               ))}

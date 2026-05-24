@@ -58,6 +58,7 @@ export interface Appointment {
   pet_age?: number;
   pet_species?: string;
   previous_medications?: string;
+  assigned_vet_name?: string;
 }
 
 interface DoctorContextType {
@@ -135,7 +136,7 @@ function mapToQueue(apts: Appointment[]): QueueItem[] {
       is_emergency: a.urgency_level === 'emergency',
       pet_name: a.pet_name || 'Unknown Pet',
       pet_breed: a.pet_breed || 'Unknown',
-      pet_species: 'Dog',
+      pet_species: a.pet_species || 'Dog',
       owner_name: a.owner_name || 'Pet Owner',
       reason: a.reason,
     }));
@@ -157,9 +158,16 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateAppointmentStatus = (id: string, status: string, rejectionReason?: string) => {
+    const docName = localStorage.getItem('pawscheck_user_name') || 'Dr. Sarah Jenkins';
+    const prettyDocName = docName.startsWith('Dr.') ? docName : `Dr. ${docName}`;
     setAppointments(prev => {
       const updated = prev.map(a =>
-        a.id === id ? { ...a, status, ...(rejectionReason ? { rejection_reason: rejectionReason } : {}) } : a
+        a.id === id ? { 
+          ...a, 
+          status, 
+          assigned_vet_name: prettyDocName,
+          ...(rejectionReason ? { rejection_reason: rejectionReason } : {}) 
+        } : a
       );
       saveAppointments(updated);
       setQueue(mapToQueue(updated));

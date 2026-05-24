@@ -67,6 +67,10 @@ CREATE TABLE IF NOT EXISTS appointments (
   vet_notes TEXT,
   health_log_id UUID REFERENCES health_logs(id),
   urgency_level TEXT DEFAULT 'normal' CHECK (urgency_level IN ('normal', 'urgent', 'emergency')),
+  pet_weight TEXT,
+  pet_age INT,
+  pet_species TEXT,
+  previous_medications TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

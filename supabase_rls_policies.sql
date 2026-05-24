@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS pets (
   vaccination_records JSONB DEFAULT '[]',
   medications JSONB DEFAULT '[]',
   microchip_number TEXT,
+  weight TEXT,
+  previous_medications TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -144,6 +146,10 @@ CREATE TABLE IF NOT EXISTS appointments (
   vet_notes TEXT,
   health_log_id UUID REFERENCES health_logs(id),
   urgency_level TEXT DEFAULT 'normal' CHECK (urgency_level IN ('normal', 'urgent', 'emergency')),
+  pet_weight TEXT,
+  pet_age INT,
+  pet_species TEXT,
+  previous_medications TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -287,6 +293,16 @@ CREATE TABLE IF NOT EXISTS pre_visit_forms (
   filled_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 18. Historical Weight Tracking
+CREATE TABLE IF NOT EXISTS weight_logs (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  weight TEXT NOT NULL,
+  date DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 
 -- ============================================================
 -- PART 2: ENABLE ROW LEVEL SECURITY & CREATE POLICIES
@@ -298,6 +314,7 @@ ALTER TABLE health_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE food_analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pet_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weight_logs ENABLE ROW LEVEL SECURITY;
 
 -- Pets (owner CRUD)
 DROP POLICY IF EXISTS "Users can view their own pets" ON pets;
@@ -332,8 +349,28 @@ CREATE POLICY "Users can insert their own reminders" ON reminders FOR INSERT WIT
 DROP POLICY IF EXISTS "Users can update their own reminders" ON reminders;
 CREATE POLICY "Users can update their own reminders" ON reminders FOR UPDATE USING (auth.uid() = owner_id);
 
-DROP POLICY IF EXISTS "Users can delete their own reminders" ON reminders;
-CREATE POLICY "Users can delete their own reminders" ON reminders FOR DELETE USING (auth.uid() = owner_id);
+-- Weight Logs (owner CRUD)
+DROP POLICY IF EXISTS "Users can view their own weight logs" ON weight_logs;
+CREATE POLICY "Users can view their own weight logs" ON weight_logs FOR SELECT USING (auth.uid() = owner_id);
+
+DROP POLICY IF EXISTS "Users can insert their own weight logs" ON weight_logs;
+CREATE POLICY "Users can insert their own weight logs" ON weight_logs FOR INSERT WITH CHECK (auth.uid() = owner_id);
+
+DROP POLICY IF EXISTS "Users can update their own weight logs" ON weight_logs;
+CREATE POLICY "Users can update their own weight logs" ON weight_logs FOR UPDATE USING (auth.uid() = owner_id);
+
+DROP POLICY IF EXISTS "Users can delete their own weight logs" ON weight_logs;
+CREATE POLICY "Users can delete their own weight logs" ON weight_logs FOR DELETE USING (auth.uid() = owner_id);
+
+-- Vets can view weight logs for their patients
+DROP POLICY IF EXISTS "Vets can view weight logs for their patients" ON weight_logs;
+CREATE POLICY "Vets can view weight logs for their patients" ON weight_logs
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM appointments a
+      WHERE a.pet_id = weight_logs.pet_id AND a.vet_id = auth.uid()
+    )
+  );
 
 
 -- B. FOOD ANALYSES

@@ -42,6 +42,16 @@ interface TimeSlot {
 
 const HOURS = Array.from({ length: 10 }, (_, i) => i + 9); // 9 AM to 6 PM
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function AppointmentManager() {
   const { appointments, pendingRequests, updateAppointmentStatus } = useDoctor();
   const [viewMode, setViewMode] = useState<ViewMode>('requests');
@@ -171,11 +181,9 @@ export default function AppointmentManager() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4">
-                    <img
-                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(apt.pet_name || 'P')}&background=${apt.urgency_level === 'emergency' ? 'ef4444' : '6366f1'}&color=ffffff&bold=true&size=44`}
-                      className="w-11 h-11 rounded-xl shrink-0"
-                      alt={apt.pet_name}
-                    />
+                    <div className="w-11 h-11 bg-slate-800 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                      {getSpeciesEmoji(apt.pet_species)}
+                    </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-base font-bold text-white">{apt.pet_name}</h4>
@@ -369,8 +377,13 @@ export default function AppointmentManager() {
                 {localAppointments.map(apt => (
                   <tr key={apt.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-5 py-3.5">
-                      <p className="text-sm font-bold text-white">{apt.pet_name}</p>
-                      <p className="text-[10px] text-slate-500">{apt.owner_name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl shrink-0">{getSpeciesEmoji(apt.pet_species)}</span>
+                        <div>
+                          <p className="text-sm font-bold text-white">{apt.pet_name}</p>
+                          <p className="text-[10px] text-slate-500">{apt.owner_name}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-5 py-3.5">
                       <p className="text-sm text-slate-300">

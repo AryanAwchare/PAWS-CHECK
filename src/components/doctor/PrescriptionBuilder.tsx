@@ -36,6 +36,7 @@ interface PatientOption {
   petBreed: string;
   ownerName: string;
   ownerEmail: string;
+  petSpecies?: string;
 }
 
 const EMPTY_MED: MedicationItem = {
@@ -71,6 +72,16 @@ const DEMO_PAST_PRESCRIPTIONS: PrescriptionRecord[] = [
   },
 ];
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function PrescriptionBuilder() {
   const { appointments } = useDoctor();
   const [viewMode, setViewMode] = useState<'builder' | 'history'>('builder');
@@ -79,9 +90,9 @@ export default function PrescriptionBuilder() {
   ]);
   
   const [patients, setPatients] = useState<PatientOption[]>([]);
-  const [selectedPet, setSelectedPet] = useState('Bruno');
+  const [selectedPet, setSelectedPet] = useState('demo-bruno');
   const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>({
-    petId: 'demo-bruno', petName: 'Bruno', petBreed: 'Golden Retriever', ownerName: 'Priya Sharma', ownerEmail: 'priya@example.com'
+    petId: 'demo-bruno', petName: 'Bruno', petBreed: 'Golden Retriever', ownerName: 'Priya Sharma', ownerEmail: 'priya@example.com', petSpecies: 'Dog'
   });
   
   const [notes, setNotes] = useState('');
@@ -90,10 +101,10 @@ export default function PrescriptionBuilder() {
 
   useEffect(() => {
     const list: PatientOption[] = [
-      { petId: 'demo-bruno', petName: 'Bruno', petBreed: 'Golden Retriever', ownerName: 'Priya Sharma', ownerEmail: 'priya@example.com' },
-      { petId: 'demo-whiskers', petName: 'Whiskers', petBreed: 'Persian Cat', ownerName: 'Raj Patel', ownerEmail: 'raj@example.com' },
-      { petId: 'demo-rocky', petName: 'Rocky', petBreed: 'Labrador', ownerName: 'Amit Kumar', ownerEmail: 'amit@example.com' },
-      { petId: 'demo-max', petName: 'Max', petBreed: 'German Shepherd', ownerName: 'Sneha Reddy', ownerEmail: 'sneha@example.com' },
+      { petId: 'demo-bruno', petName: 'Bruno', petBreed: 'Golden Retriever', ownerName: 'Priya Sharma', ownerEmail: 'priya@example.com', petSpecies: 'Dog' },
+      { petId: 'demo-whiskers', petName: 'Whiskers', petBreed: 'Persian Cat', ownerName: 'Raj Patel', ownerEmail: 'raj@example.com', petSpecies: 'Cat' },
+      { petId: 'demo-rocky', petName: 'Rocky', petBreed: 'Labrador', ownerName: 'Amit Kumar', ownerEmail: 'amit@example.com', petSpecies: 'Dog' },
+      { petId: 'demo-max', petName: 'Max', petBreed: 'German Shepherd', ownerName: 'Sneha Reddy', ownerEmail: 'sneha@example.com', petSpecies: 'Dog' },
     ];
 
     // Add patients from active appointments
@@ -107,6 +118,7 @@ export default function PrescriptionBuilder() {
             petBreed: apt.pet_breed || 'Unknown',
             ownerName: apt.owner_name || 'Pet Owner',
             ownerEmail: apt.owner_email || 'owner@example.com',
+            petSpecies: apt.pet_species || 'Dog',
           });
         }
       }
@@ -128,6 +140,7 @@ export default function PrescriptionBuilder() {
               petBreed: pet.breed || 'Unknown',
               ownerName: activeName,
               ownerEmail: activeEmail,
+              petSpecies: pet.species || 'Dog',
             });
           }
         });
@@ -185,6 +198,9 @@ export default function PrescriptionBuilder() {
 
       const rxId = `rx-${Date.now()}`;
       
+      const docName = localStorage.getItem('pawscheck_user_name') || 'Dr. Sarah Jenkins';
+      const prettyDocName = docName.startsWith('Dr.') ? docName : `Dr. ${docName}`;
+
       // Save prescription to pawscheck_prescriptions
       const newRx = {
         id: rxId,
@@ -192,7 +208,7 @@ export default function PrescriptionBuilder() {
         petBreed,
         ownerName,
         ownerEmail,
-        vetName: 'Dr. Sharma',
+        vetName: prettyDocName,
         clinicName: 'PawCare Veterinary Clinic',
         medications: validMeds,
         notes: notes || 'Complete full dosage schedule as indicated.',
@@ -208,6 +224,7 @@ export default function PrescriptionBuilder() {
       const record = {
         id: `rx-portal-${Date.now()}`,
         pet_name: petName,
+        owner_email: ownerEmail,
         date: new Date().toLocaleDateString(),
         summary: `OFFICIAL CLINICAL E-PRESCRIPTION ORDER:\n\nPrescribed Regimen:\n${medsText}\n\nClinician Notes:\n${notes || 'Complete full dosage schedule as indicated.'}`,
         status: 'Prescribed'
@@ -264,7 +281,7 @@ export default function PrescriptionBuilder() {
               >
                 {patients.map(p => (
                   <option key={p.petId} value={p.petId}>
-                    {p.petName} — {p.petBreed} (Owner: {p.ownerName})
+                    {getSpeciesEmoji(p.petSpecies)} {p.petName} — {p.petBreed} (Owner: {p.ownerName})
                   </option>
                 ))}
               </select>

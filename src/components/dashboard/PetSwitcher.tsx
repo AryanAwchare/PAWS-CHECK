@@ -4,6 +4,16 @@ import { ChevronDown, Plus, X, Loader2, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 
+const getSpeciesEmoji = (species?: string) => {
+  const s = species?.toLowerCase();
+  if (s === 'dog') return '🐕';
+  if (s === 'cat') return '🐈';
+  if (s === 'fish') return '🐠';
+  if (s === 'bird') return '🐦';
+  if (s === 'rabbit') return '🐇';
+  return '🐾';
+};
+
 export default function PetSwitcher() {
   const { pets, activePet, setActivePetId, loading, refreshPets, userId, isGuest } = usePet();
   const [isOpen, setIsOpen] = useState(false);
@@ -18,6 +28,8 @@ export default function PetSwitcher() {
     species: 'Dog',
     breed: '',
     age: '',
+    weight: '',
+    previous_medications: ''
   });
 
   useEffect(() => {
@@ -53,7 +65,9 @@ export default function PetSwitcher() {
       breed: newPet.breed.trim() || 'Mixed Breed',
       age: newPet.age ? parseInt(newPet.age) : 2,
       profile_picture_url: `https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=1000`,
-      medical_history: 'No known chronic ailments.'
+      medical_history: 'No known chronic ailments.',
+      weight: newPet.weight ? parseFloat(newPet.weight) : '',
+      previous_medications: newPet.previous_medications.trim()
     };
 
     try {
@@ -63,10 +77,28 @@ export default function PetSwitcher() {
         let localArr = localSaved ? JSON.parse(localSaved) : [];
         localArr.push(generatedPet);
         localStorage.setItem('pawscheck_local_pets', JSON.stringify(localArr));
+
+        if (generatedPet.weight) {
+          try {
+            const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+            const initialLog = {
+              id: `weight-log-init-${Date.now()}`,
+              pet_id: generatedPet.id,
+              pet_name: generatedPet.name,
+              owner_id: userId,
+              owner_email: activeEmail,
+              weight: String(generatedPet.weight),
+              date: new Date().toISOString().split('T')[0]
+            };
+            const existingLogs = localStorage.getItem('pawscheck_weight_logs');
+            const parsedLogs = existingLogs ? JSON.parse(existingLogs) : [];
+            localStorage.setItem('pawscheck_weight_logs', JSON.stringify([initialLog, ...parsedLogs]));
+          } catch (e) {}
+        }
         
         await refreshPets();
         setActivePetId(generatedPet.id);
-        setNewPet({ name: '', species: 'Dog', breed: '', age: '' });
+        setNewPet({ name: '', species: 'Dog', breed: '', age: '', weight: '', previous_medications: '' });
         setShowAddForm(false);
         setIsOpen(false);
         return;
@@ -80,12 +112,32 @@ export default function PetSwitcher() {
           species: generatedPet.species,
           breed: generatedPet.breed,
           age: generatedPet.age,
+          weight: generatedPet.weight || null,
+          previous_medications: generatedPet.previous_medications || null
         }]);
 
       if (error) throw new Error(error.message);
+
+      if (generatedPet.weight) {
+        try {
+          const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+          const initialLog = {
+            id: `weight-log-init-${Date.now()}`,
+            pet_id: generatedPet.id,
+            pet_name: generatedPet.name,
+            owner_id: userId,
+            owner_email: activeEmail,
+            weight: String(generatedPet.weight),
+            date: new Date().toISOString().split('T')[0]
+          };
+          const existingLogs = localStorage.getItem('pawscheck_weight_logs');
+          const parsedLogs = existingLogs ? JSON.parse(existingLogs) : [];
+          localStorage.setItem('pawscheck_weight_logs', JSON.stringify([initialLog, ...parsedLogs]));
+        } catch (e) {}
+      }
       
       await refreshPets();
-      setNewPet({ name: '', species: 'Dog', breed: '', age: '' });
+      setNewPet({ name: '', species: 'Dog', breed: '', age: '', weight: '', previous_medications: '' });
       setShowAddForm(false);
       setIsOpen(false);
     } catch (err: any) {
@@ -95,10 +147,28 @@ export default function PetSwitcher() {
       let localArr = localSaved ? JSON.parse(localSaved) : [];
       localArr.push(generatedPet);
       localStorage.setItem('pawscheck_local_pets', JSON.stringify(localArr));
+
+      if (generatedPet.weight) {
+        try {
+          const activeEmail = localStorage.getItem('pawscheck_user_email') || 'anonymous';
+          const initialLog = {
+            id: `weight-log-init-${Date.now()}`,
+            pet_id: generatedPet.id,
+            pet_name: generatedPet.name,
+            owner_id: userId,
+            owner_email: activeEmail,
+            weight: String(generatedPet.weight),
+            date: new Date().toISOString().split('T')[0]
+          };
+          const existingLogs = localStorage.getItem('pawscheck_weight_logs');
+          const parsedLogs = existingLogs ? JSON.parse(existingLogs) : [];
+          localStorage.setItem('pawscheck_weight_logs', JSON.stringify([initialLog, ...parsedLogs]));
+        } catch (e) {}
+      }
       
       await refreshPets();
       setActivePetId(generatedPet.id);
-      setNewPet({ name: '', species: 'Dog', breed: '', age: '' });
+      setNewPet({ name: '', species: 'Dog', breed: '', age: '', weight: '', previous_medications: '' });
       setShowAddForm(false);
       setIsOpen(false);
     } finally {
@@ -117,11 +187,9 @@ export default function PetSwitcher() {
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-3 bg-white border border-slate-200 py-1.5 pl-2 pr-3 rounded-full hover:bg-slate-50 transition-colors shadow-sm"
         >
-          <img 
-            src={activePet?.profile_picture_url || `https://ui-avatars.com/api/?name=${activePet?.name || 'Pet'}&background=e2e8f0&color=475569`} 
-            alt={activePet?.name || 'Pet'} 
-            className="w-7 h-7 rounded-full object-cover"
-          />
+          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-sm shrink-0">
+            {getSpeciesEmoji(activePet?.species)}
+          </div>
           <div className="text-left flex-1 min-w-[80px]">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Active Pet</p>
             <p className="text-xs font-black text-slate-800 leading-none truncate">{activePet?.name || 'Select Pet'}</p>
@@ -153,11 +221,9 @@ export default function PetSwitcher() {
                     }}
                     className={`w-full flex items-center gap-3 p-3 hover:bg-slate-50 transition-colors text-left ${activePet?.id === pet.id ? 'bg-blue-50/30' : ''}`}
                   >
-                    <img 
-                      src={pet.profile_picture_url || `https://ui-avatars.com/api/?name=${pet.name}&background=e2e8f0&color=475569`} 
-                      alt={pet.name} 
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-lg shrink-0">
+                      {getSpeciesEmoji(pet.species)}
+                    </div>
                     <div>
                       <p className={`text-sm font-bold ${activePet?.id === pet.id ? 'text-blue-600' : 'text-slate-800'}`}>{pet.name}</p>
                       <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">{pet.species} • {pet.age} yrs</p>
@@ -250,8 +316,32 @@ export default function PetSwitcher() {
                     value={newPet.breed}
                     onChange={(e) => setNewPet({ ...newPet, breed: e.target.value })}
                     placeholder="e.g., Golden Retriever"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm font-bold text-slate-800"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Weight (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={newPet.weight}
+                      onChange={(e) => setNewPet({ ...newPet, weight: e.target.value })}
+                      placeholder="e.g., 12.5"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Previous Meds</label>
+                    <input
+                      type="text"
+                      value={newPet.previous_medications}
+                      onChange={(e) => setNewPet({ ...newPet, previous_medications: e.target.value })}
+                      placeholder="e.g., Apoquel, None"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm font-bold text-slate-800"
+                    />
+                  </div>
                 </div>
 
                 {formError && (

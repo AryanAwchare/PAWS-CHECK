@@ -92,7 +92,10 @@ export default function ScanResults({ logId, uploadedImage, prefetchedReport, on
       urgency_level: report.triage_tier?.toLowerCase() === 'emergency' ? 'emergency' : report.triage_tier?.toLowerCase() === 'urgent' ? 'urgent' : 'normal',
       pet_name: report.pets?.name || 'My Pet',
       owner_name: userName,
-      pet_breed: report.pets?.breed || 'Unknown'
+      pet_breed: report.pets?.breed || 'Unknown',
+      pet_species: activePet?.species || 'Dog',
+      pet_weight: activePet?.weight || '',
+      pet_age: activePet?.age || undefined
     };
 
     try {

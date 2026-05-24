@@ -32,6 +32,36 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
     localStorage.setItem('pawscheck_theme', nextDark ? 'dark' : 'light');
   };
 
+  const [previousUsers, setPreviousUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const prev = localStorage.getItem('pawscheck_previous_users');
+      if (prev) {
+        setPreviousUsers(JSON.parse(prev));
+      }
+    } catch (e) {}
+  }, []);
+
+  const savePreviousUser = (userEmail: string, userName: string, userRole: 'owner' | 'veterinarian') => {
+    try {
+      const prevUsersStr = localStorage.getItem('pawscheck_previous_users');
+      let prevUsers = prevUsersStr ? JSON.parse(prevUsersStr) : [];
+      prevUsers = prevUsers.filter((u: any) => u.email.toLowerCase() !== userEmail.toLowerCase());
+      prevUsers.unshift({
+        email: userEmail.toLowerCase(),
+        name: userName,
+        role: userRole,
+        timestamp: Date.now()
+      });
+      prevUsers = prevUsers.slice(0, 5);
+      localStorage.setItem('pawscheck_previous_users', JSON.stringify(prevUsers));
+      setPreviousUsers(prevUsers);
+    } catch (e) {
+      console.error("Failed to save previous user profile", e);
+    }
+  };
+
   const isVet = selectedRole === 'veterinarian';
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -40,13 +70,27 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
     setError(null);
     
     try {
-      // Store the requested role and typed credentials in localStorage to ensure user state saves seamlessly
-      localStorage.setItem('pawscheck_role', selectedRole);
       if (email.trim()) {
         const cleanEmail = email.trim().toLowerCase();
-        localStorage.setItem('pawscheck_user_email', cleanEmail);
         const generatedName = cleanEmail.split('@')[0];
         const prettyName = generatedName.charAt(0).toUpperCase() + generatedName.slice(1);
+        
+        // Master Multi-User Table Database provisioning logic
+        const profilesStr = localStorage.getItem('pawscheck_multi_user_profiles');
+        const masterTable = profilesStr ? JSON.parse(profilesStr) : {};
+
+        if (masterTable[cleanEmail]) {
+          const existingProfile = masterTable[cleanEmail];
+          if (existingProfile.role && existingProfile.role !== selectedRole) {
+            setError(`Access Denied: This account is registered as a ${existingProfile.role === 'owner' ? 'Customer' : 'Doctor'}.`);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Store the requested role and typed credentials in localStorage to ensure user state saves seamlessly
+        localStorage.setItem('pawscheck_role', selectedRole);
+        localStorage.setItem('pawscheck_user_email', cleanEmail);
         localStorage.setItem('pawscheck_user_name', prettyName);
         
         // Generate deterministic isolated user ID from email hash
@@ -58,10 +102,6 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
         const uniqueHex = Math.abs(hash).toString(16).padStart(12, '0');
         const customUserId = `00000000-0000-4000-8000-${uniqueHex}`;
         localStorage.setItem('pawscheck_user_id', customUserId);
-
-        // Master Multi-User Table Database provisioning logic
-        const profilesStr = localStorage.getItem('pawscheck_multi_user_profiles');
-        const masterTable = profilesStr ? JSON.parse(profilesStr) : {};
 
         if (isSignUp) {
           // If signing up as a new user, initialize an entirely new clean slice for this person
@@ -102,6 +142,8 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
             localStorage.setItem('pawscheck_user_scans', JSON.stringify([]));
           }
         }
+
+        savePreviousUser(cleanEmail, prettyName, selectedRole);
       }
 
       // Completely skip external backend APIs to prevent Supabase 429 rate limit log alerts on the login screen
@@ -114,16 +156,18 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans relative overflow-hidden transition-colors duration-300">
       {/* Background dynamic gradients based on selected role */}
       <div className={`absolute inset-0 transition-colors duration-700 -z-10 ${
-        isVet ? 'bg-gradient-to-tr from-emerald-100/40 to-teal-50/40' : 'bg-gradient-to-tr from-blue-100/50 to-indigo-50/50'
+        isVet 
+          ? 'bg-gradient-to-tr from-emerald-100/40 to-teal-50/40 dark:from-emerald-950/20 dark:to-slate-950' 
+          : 'bg-gradient-to-tr from-blue-100/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-slate-950'
       }`}></div>
       
       <div className="sm:mx-auto sm:w-full sm:max-w-md z-10 relative px-4 sm:px-0">
         <button 
           onClick={onBack}
-          className="absolute -top-12 left-4 sm:left-0 text-slate-500 hover:text-slate-800 flex items-center gap-2 font-medium transition-colors"
+          className="absolute -top-12 left-4 sm:left-0 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 font-medium transition-colors"
         >
           <ArrowLeft size={16} /> Back to Home
         </button>
@@ -153,10 +197,10 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
           </motion.div>
         </div>
 
-        <h2 className="mt-6 text-center text-3xl font-black text-slate-900 tracking-tight">
+        <h2 className="mt-6 text-center text-3xl font-black text-slate-900 dark:text-white tracking-tight">
           {isVet ? 'Veterinarian Portal' : 'Customer & Pet Portal'}
         </h2>
-        <p className="mt-1 text-center text-sm text-slate-500 font-medium">
+        <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
           {isVet ? 'Secure access for licensed veterinary clinicians' : 'Manage your pet health records and scans'}
         </p>
       </div>
@@ -166,17 +210,17 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
         animate={{ opacity: 1, y: 0 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md z-10 px-4 sm:px-0"
       >
-        <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-3xl sm:px-10 border border-slate-100">
+        <div className="bg-white dark:bg-slate-900/90 py-8 px-4 shadow-xl shadow-slate-200/50 dark:shadow-none sm:rounded-3xl sm:px-10 border border-slate-100 dark:border-slate-800 transition-colors">
           
           {/* Dual Role Tabs Toggle */}
-          <div className="flex rounded-xl bg-slate-100 p-1 mb-6">
+          <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1 mb-6">
             <button
               type="button"
               onClick={() => setSelectedRole('owner')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${
                 !isVet 
-                  ? 'bg-white text-blue-600 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               <PawPrint size={16} />
@@ -187,8 +231,8 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
               onClick={() => setSelectedRole('veterinarian')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${
                 isVet 
-                  ? 'bg-white text-emerald-600 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               <Stethoscope size={16} />
@@ -197,14 +241,14 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
           </div>
 
           {/* Action Switcher: Login vs Register New User */}
-          <div className="grid grid-cols-2 bg-slate-50 rounded-xl p-1 mb-6 border border-slate-100">
+          <div className="grid grid-cols-2 bg-slate-50 dark:bg-slate-850 rounded-xl p-1 mb-6 border border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => { setIsSignUp(false); setError(null); }}
               className={`py-2 text-xs font-black rounded-lg transition-all uppercase tracking-wider ${
                 !isSignUp 
-                  ? (isVet ? 'bg-white text-emerald-700 shadow-sm' : 'bg-white text-blue-700 shadow-sm') 
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? (isVet ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm' : 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-400 shadow-sm') 
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
               Sign In
@@ -214,8 +258,8 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
               onClick={() => { setIsSignUp(true); setError(null); }}
               className={`py-2 text-xs font-black rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-1 ${
                 isSignUp 
-                  ? (isVet ? 'bg-white text-emerald-700 shadow-sm' : 'bg-white text-blue-700 shadow-sm') 
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? (isVet ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm' : 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-400 shadow-sm') 
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -223,11 +267,9 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
             </button>
           </div>
 
-          {/* Offline prototype logic runs invisibly in the background */}
-
           <form className="space-y-6" onSubmit={handleAuth}>
             <div>
-              <label className="block text-sm font-bold text-slate-700">
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">
                 {isVet ? 'Doctor Email Address' : 'Customer Email Address'}
               </label>
               <div className="mt-2">
@@ -236,7 +278,7 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`block w-full appearance-none rounded-xl border border-slate-200 px-4 py-3 placeholder-slate-400 focus:outline-none focus:ring-2 sm:text-sm transition-all ${
+                  className={`block w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 px-4 py-3 placeholder-slate-400 dark:placeholder-slate-500 text-slate-800 dark:text-white focus:outline-none focus:ring-2 sm:text-sm transition-all ${
                     isVet ? 'focus:border-emerald-500 focus:ring-emerald-500/20' : 'focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                   placeholder={isVet ? 'dr.smith@vetclinic.com' : 'petowner@gmail.com'}
@@ -245,14 +287,14 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700">Password</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
               <div className="mt-2">
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`block w-full appearance-none rounded-xl border border-slate-200 px-4 py-3 placeholder-slate-400 focus:outline-none focus:ring-2 sm:text-sm transition-all ${
+                  className={`block w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 px-4 py-3 placeholder-slate-400 dark:placeholder-slate-500 text-slate-800 dark:text-white focus:outline-none focus:ring-2 sm:text-sm transition-all ${
                     isVet ? 'focus:border-emerald-500 focus:ring-emerald-500/20' : 'focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                   placeholder="••••••••"
@@ -261,7 +303,7 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
             </div>
 
             {error && (
-              <div className="bg-red-50 text-red-500 p-3 rounded-xl text-xs font-bold border border-red-100 leading-relaxed">
+              <div className="bg-red-50 dark:bg-red-950/20 text-red-500 dark:text-red-400 p-3 rounded-xl text-xs font-bold border border-red-100 dark:border-red-900/50 leading-relaxed">
                  {error}
               </div>
             )}
@@ -288,10 +330,10 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-2 text-slate-400 font-bold text-xs uppercase tracking-wider">or quick explore</span>
+                <span className="bg-white dark:bg-slate-900 px-2 text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-wider">or quick explore</span>
               </div>
             </div>
 
@@ -337,14 +379,51 @@ export default function Auth({ onBack, onGuest, initialRole = 'owner' }: AuthPro
                 localStorage.setItem('pawscheck_local_pets', JSON.stringify(userSection.pets || []));
                 localStorage.setItem('pawscheck_user_scans', JSON.stringify(userSection.scans || []));
 
+                savePreviousUser(email, name, selectedRole);
                 onGuest(selectedRole);
               }}
-              className="mt-4 flex w-full justify-center items-center gap-2 rounded-xl border-2 border-slate-200 bg-white py-3.5 px-4 text-xs font-black text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all uppercase tracking-wider"
+              className="mt-4 flex w-full justify-center items-center gap-2 rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-3.5 px-4 text-xs font-black text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all uppercase tracking-wider"
             >
               <UserCircle size={16} className={isVet ? 'text-emerald-600' : 'text-blue-600'} />
               {isVet ? 'Access Doctor Portal Demo' : 'Access Customer Portal Demo'}
             </button>
           </div>
+
+          {/* Previous Logins Section */}
+          {previousUsers.length > 0 && (
+            <div className="mt-6 border-t border-slate-100 dark:border-slate-800 pt-5">
+              <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <UserCircle size={13} className="text-slate-400 dark:text-slate-500" />
+                Saved Accounts on this Device
+              </h4>
+              <div className="space-y-2">
+                {previousUsers.map((user: any) => (
+                  <button
+                    key={`${user.email}-${user.role}`}
+                    type="button"
+                    onClick={() => {
+                      setEmail(user.email);
+                      setSelectedRole(user.role);
+                      setPassword('••••••••');
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800/80 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all text-left group"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white truncate">{user.name}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 group-hover:text-slate-500 dark:group-hover:text-slate-400 truncate">{user.email}</p>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${
+                      user.role === 'veterinarian'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100/50 dark:border-emerald-900/50'
+                        : 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 border-blue-100/50 dark:border-blue-900/50'
+                    }`}>
+                      {user.role === 'veterinarian' ? 'Doctor' : 'Customer'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
